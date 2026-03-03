@@ -1,3 +1,4 @@
+
 ---
 title: Database setup
 description: Configure SQLite or PostgreSQL for Reading Assistant
@@ -147,7 +148,7 @@ Reading Assistant does not currently use Alembic or migration files. Schema chan
 
 The database connection is configured in `db/__init__.py:8-10`:
 
-```python
+```text
 engine = create_engine(settings.DATABASE_URL, echo=False)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 ```

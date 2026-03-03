@@ -1,3 +1,4 @@
+
 ---
 title: Authentication
 description: User authentication with Better Auth for secure access
@@ -105,14 +106,14 @@ When making API requests, include the session token:
 
 **Using cookies (same-domain):**
 
-```bash
+```http
 GET /api/library
 Cookie: better-auth.session_token=<session-token>
 ```
 
 **Using Authorization header (cross-domain):**
 
-```bash
+```http
 GET /api/library
 Authorization: Bearer <session-token>
 ```

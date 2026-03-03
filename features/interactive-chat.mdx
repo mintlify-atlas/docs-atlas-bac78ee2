@@ -1,3 +1,4 @@
+
 ---
 title: Interactive chat
 description: RAG-powered conversations with your books using semantic search and AI
@@ -19,7 +20,7 @@ The chat system follows a three-step process:
 
 When you create your first chat for a book, the system indexes the content:
 
-```python
+```bash
 # Split book into chunks
 splitter = SentenceSplitter(
     chunk_size=1024,      # Characters per chunk
@@ -47,7 +48,7 @@ Indexing happens automatically when you create your first chat. A typical book c
 
 When you ask a question, the system retrieves relevant chunks:
 
-```python
+```nginx
 index = _load_index(summary_id)
 retriever = index.as_retriever(similarity_top_k=5)
 
@@ -68,7 +69,7 @@ See `rag/chat_engine.py:33` for retrieval details.
 
 The retrieved context is sent to the language model with your question:
 
-```python
+```text
 messages = [
     {"role": "system", "content": system_prompt_with_context},
     # ... previous messages ...
@@ -93,7 +94,7 @@ See `rag/chat_engine.py:50` for the system prompt.
 
 To start chatting with a book, create a chat session:
 
-```bash
+```http
 POST /chats
 {
   "summary_id": "abc123"
@@ -125,7 +126,7 @@ See `routers/chat.py:39` for the chat creation endpoint.
 
 Send a message to get a streaming response:
 
-```bash
+```http
 POST /chats/{chat_id}/messages
 {
   "content": "What are the main benefits of deep work?"
@@ -133,7 +134,8 @@ POST /chats/{chat_id}/messages
 ```
 
 **Response** (Server-Sent Events):
-```
+```json
+data: {"content": "The "}
 data: {"content": "The "}
 data: {"content": "main "}
 data: {"content": "benefits "}
@@ -159,7 +161,7 @@ The system maintains conversation history automatically:
 
 This allows the AI to reference previous questions and maintain conversation context:
 
-```
+```text
 User: What is deep work?
 Assistant: Deep work is...
 
@@ -229,7 +231,7 @@ The formatting makes responses easy to read and parse in the frontend.
 
 ### List all chats
 
-```bash
+```http
 GET /chats?include_book=true
 ```
 
@@ -237,7 +239,7 @@ Returns all chats for the current user, optionally including book titles.
 
 ### Get chat details
 
-```bash
+```http
 GET /chats/{chat_id}
 ```
 
@@ -245,7 +247,7 @@ Returns the complete chat with all messages in chronological order.
 
 ### Delete a chat
 
-```bash
+```http
 DELETE /chats/{chat_id}
 ```
 

@@ -1,3 +1,4 @@
+
 ---
 title: PDF export
 description: Export book summaries as formatted PDF documents with multilingual support
@@ -11,12 +12,13 @@ Reading Assistant can export your generated summaries as beautifully formatted P
 
 To download a summary as PDF:
 
-```bash
+```http
 GET /summary/{summary_id}/pdf
 ```
 
 **Response**: PDF file with proper headers
-```
+```http
+Content-Type: application/pdf
 Content-Type: application/pdf
 Content-Disposition: attachment; filename*=UTF-8''Book_Title_summary.pdf
 ```

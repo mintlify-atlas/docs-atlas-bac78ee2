@@ -1,3 +1,4 @@
+
 ---
 title: Chat with books
 description: Ask questions and explore books interactively using AI-powered chat
@@ -80,7 +81,7 @@ You can have multiple chat sessions for the same book:
 
 Start a new chat session for a book:
 
-```bash
+```http
 POST /api/chats
 Authorization: Bearer <session-token>
 Content-Type: application/json
@@ -106,7 +107,7 @@ Content-Type: application/json
 
 Send a message and receive a streaming response:
 
-```bash
+```http
 POST /api/chats/{chat_id}/messages
 Authorization: Bearer <session-token>
 Content-Type: application/json
@@ -118,7 +119,8 @@ Content-Type: application/json
 
 **Response:** Server-Sent Events (SSE) stream
 
-```
+```json
+data: {"content": "The"}
 data: {"content": "The"}
 
 data: {"content": " main"}
@@ -132,7 +134,7 @@ data: {"done": true}
 
 Retrieve a chat with all its messages:
 
-```bash
+```http
 GET /api/chats/{chat_id}
 Authorization: Bearer <session-token>
 ```
@@ -166,7 +168,7 @@ Authorization: Bearer <session-token>
 
 ### List user's chats
 
-```bash
+```http
 GET /api/chats
 Authorization: Bearer <session-token>
 
@@ -177,7 +179,7 @@ Authorization: Bearer <session-token>
 
 ### Delete a chat
 
-```bash
+```http
 DELETE /api/chats/{chat_id}
 Authorization: Bearer <session-token>
 ```

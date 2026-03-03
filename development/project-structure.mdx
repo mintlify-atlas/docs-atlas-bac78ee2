@@ -1,3 +1,4 @@
+
 ---
 title: Project structure
 description: Codebase organization and file structure of Reading Assistant
@@ -7,7 +8,7 @@ Reading Assistant is organized as a monorepo with separate backend and frontend 
 
 ## Repository structure
 
-```
+```text
 reading-assistant/
 ├── api.py                 # FastAPI application entry point
 ├── core/                  # Core business logic
@@ -39,7 +40,7 @@ reading-assistant/
 
 Business logic separated from API layer:
 
-```
+```text
 core/
 ├── config.py           # Settings and logging configuration
 ├── extractor.py        # Text extraction from PDF/EPUB/URLs
@@ -80,7 +81,7 @@ core/
 
 SQLAlchemy models and repositories:
 
-```
+```text
 db/
 ├── __init__.py         # Database initialization and session management
 ├── models/
@@ -111,7 +112,7 @@ Data access layer implementing repository pattern:
 
 FastAPI routers organized by domain:
 
-```
+```text
 routers/
 ├── __init__.py         # Router exports
 ├── summarize.py        # Book upload and summary endpoints
@@ -139,7 +140,7 @@ routers/
 
 Retrieval-Augmented Generation implementation:
 
-```
+```text
 rag/
 ├── __init__.py         # Exports public functions
 ├── indexer.py          # Document chunking and indexing
@@ -171,7 +172,7 @@ rag/
 
 Pydantic models for request/response validation:
 
-```
+```text
 schemas/
 └── chat.py             # Chat and message schemas
 ```
@@ -182,7 +183,7 @@ Defines API contracts for chat endpoints.
 
 Unit and integration tests:
 
-```
+```text
 tests/
 └── test_rag.py         # RAG system tests
 ```
@@ -191,7 +192,7 @@ tests/
 
 Next.js 16 App Router application:
 
-```
+```text
 client/
 ├── app/                        # Route pages and layouts
 │   ├── layout.tsx             # Root layout with providers

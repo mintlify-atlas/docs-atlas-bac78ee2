@@ -1,3 +1,4 @@
+
 ---
 title: 'Authentication'
 description: 'Authentication flow and session management'
@@ -24,7 +25,7 @@ Session tokens can be provided in two ways:
 
 Use the `Authorization` header with a Bearer token. This method works for cross-domain requests:
 
-```bash
+```http
 Authorization: Bearer <session-token>
 ```
 
@@ -38,7 +39,7 @@ curl https://your-domain.com/api/chats \
 
 For same-domain requests or local development, the session token can be sent as a cookie:
 
-```bash
+```http
 Cookie: better-auth.session-token=<session-token>
 ```
 
@@ -48,7 +49,7 @@ The cookie name can be configured via the `BETTER_AUTH_COOKIE_NAME` environment 
 
 The API validates session tokens by making a request to Better Auth:
 
-```
+```http
 GET {BETTER_AUTH_URL}/api/auth/get-session
 ```
 

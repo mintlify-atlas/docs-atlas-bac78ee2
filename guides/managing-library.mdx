@@ -1,3 +1,4 @@
+
 ---
 title: Managing your library
 description: Save, organize, and access your book summaries
@@ -75,7 +76,7 @@ Currently, summaries in your library are displayed chronologically with the most
 
 Add a summary to your library:
 
-```bash
+```http
 POST /api/summary/{summary_id}/save
 Authorization: Bearer <session-token>
 ```
@@ -92,7 +93,7 @@ Authorization: Bearer <session-token>
 
 Remove a summary from your library:
 
-```bash
+```http
 DELETE /api/summary/{summary_id}/save
 Authorization: Bearer <session-token>
 ```
@@ -109,7 +110,7 @@ Authorization: Bearer <session-token>
 
 Retrieve all summaries in your library:
 
-```bash
+```http
 GET /api/library
 Authorization: Bearer <session-token>
 ```
@@ -150,7 +151,7 @@ Authorization: Bearer <session-token>
 
 When retrieving a summary by ID, the response includes an `isSaved` field:
 
-```bash
+```http
 GET /api/summary/{summary_id}
 Authorization: Bearer <session-token>
 ```
@@ -179,7 +180,7 @@ You can export any summary as a PDF:
 
 **API endpoint:**
 
-```bash
+```http
 GET /api/summary/{summary_id}/pdf
 ```
 

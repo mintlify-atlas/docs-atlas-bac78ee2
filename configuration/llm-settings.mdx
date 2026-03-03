@@ -1,3 +1,4 @@
+
 ---
 title: LLM settings
 description: Configure language models and prompts for summarization
@@ -9,7 +10,7 @@ Reading Assistant uses OpenRouter to access various language models for generati
 
 The LLM model is configured in `core/config.py:18`:
 
-```python
+```text
 LLM_MODEL: str = os.getenv("LLM_MODEL", "google/gemini-3-flash-preview")
 ```
 
@@ -36,7 +37,7 @@ LLM_MODEL=google/gemini-3-flash-preview
 
 The OpenRouter API endpoint is configured in `core/config.py:14`:
 
-```python
+```text
 OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1/chat/completions"
 ```
 
@@ -46,7 +47,7 @@ This typically doesn't need to be changed unless you're using a proxy or custom 
 
 The summarization request includes these parameters in `core/summarizer.py:97-105`:
 
-```python
+```text
 payload = {
     "model": settings.LLM_MODEL,
     "messages": [
@@ -83,7 +84,7 @@ async with httpx.AsyncClient(timeout=120.0) as client:
 The system prompt defines the structure and rules for summary generation. It's defined in `core/summarizer.py:19-82`:
 
 <Accordion title="View full system prompt">
-```
+```text
 You are a reading assistant. Analyze the provided text and return a JSON object with this exact structure:
 
 IMPORTANT: Detect the language of the provided text and return all summaries in that same language.
@@ -164,7 +165,7 @@ To modify the summary structure or rules:
 
 If the input text exceeds 400,000 characters, it's automatically truncated in `core/summarizer.py:92-95`:
 
-```python
+```sql
 max_content_chars = 400_000
 if len(text) > max_content_chars:
     logger.warning(f"Text truncated from {len(text)} to {max_content_chars} chars")
@@ -188,13 +189,13 @@ All errors are logged to `logs/app.log` for debugging.
 
 The chat feature uses OpenAI embeddings for vector search. This is configured in `core/config.py:39`:
 
-```python
+```text
 EMBEDDING_MODEL = "text-embedding-3-small"
 ```
 
 ### Embedding parameters
 
-```python
+```sql
 CHUNK_SIZE = 1024        # Characters per chunk
 CHUNK_OVERLAP = 200      # Overlap between chunks
 TOP_K = 5                # Number of chunks to retrieve

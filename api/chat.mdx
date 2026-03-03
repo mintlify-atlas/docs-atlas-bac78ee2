@@ -1,3 +1,4 @@
+
 ---
 title: 'Chat endpoints'
 description: 'Create and manage conversations about books'
@@ -345,7 +346,8 @@ Required. Users can only send messages to their own chats.
 Returns Server-Sent Events (SSE) stream with `Content-Type: text/event-stream`.
 
 Each event is formatted as:
-```
+```text
+data: {JSON}
 data: {JSON}
 
 ```
@@ -377,7 +379,8 @@ curl -X POST https://your-domain.com/api/chats/chat_xyz789/messages \
 ```
 
 **Response stream**:
-```
+```json
+data: {"content": "The"}
 data: {"content": "The"}
 
 data: {"content": " author"}

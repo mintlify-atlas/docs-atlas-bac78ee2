@@ -1,3 +1,4 @@
+
 ---
 title: 'API overview'
 description: 'Learn about Reading Assistant API authentication and base configuration'
@@ -7,13 +8,14 @@ description: 'Learn about Reading Assistant API authentication and base configur
 
 All API endpoints are relative to your deployment URL:
 
-```
+```text
 https://your-domain.com/api
 ```
 
 For local development:
 
-```
+```sql
+http://localhost:8000/api
 http://localhost:8000/api
 ```
 
@@ -27,13 +29,13 @@ Session tokens can be provided in two ways:
 
 1. **Authorization header** (recommended for cross-domain requests):
 
-```bash
+```http
 Authorization: Bearer <session-token>
 ```
 
 2. **Cookie** (for same-domain requests):
 
-```bash
+```http
 Cookie: better-auth.session-token=<session-token>
 ```
 

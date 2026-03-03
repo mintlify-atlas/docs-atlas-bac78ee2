@@ -1,3 +1,4 @@
+
 ---
 title: Deployment
 description: Guide to deploying Reading Assistant to production
@@ -275,7 +276,7 @@ Certbot will automatically configure SSL and set up auto-renewal.
 
 The included `deploy.sh` script automates updates:
 
-```bash
+```text
 #!/bin/bash
 set -e
 
@@ -310,7 +311,7 @@ chmod +x deploy.sh
 
 Run deployments:
 
-```bash
+```text
 ./deploy.sh
 ```
 
@@ -320,7 +321,7 @@ Run deployments:
 
 For schema changes, you may want to add Alembic:
 
-```bash
+```text
 uv pip install alembic
 alembic init alembic
 # Configure alembic.ini and env.py

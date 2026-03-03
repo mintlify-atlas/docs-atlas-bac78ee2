@@ -1,3 +1,4 @@
+
 ---
 title: Library management
 description: Save, organize, and access your book summaries across sessions
@@ -11,7 +12,7 @@ Reading Assistant provides a personal library where you can save and manage your
 
 To add a summary to your library:
 
-```bash
+```http
 POST /summary/{summary_id}/save
 ```
 
@@ -34,7 +35,7 @@ See `routers/summarize.py:139` for the save endpoint.
 
 To remove a summary from your library:
 
-```bash
+```http
 DELETE /summary/{summary_id}/save
 ```
 
@@ -55,7 +56,7 @@ See `routers/summarize.py:150` for the unsave endpoint.
 
 Retrieve all summaries you've saved:
 
-```bash
+```http
 GET /library
 ```
 
@@ -95,7 +96,7 @@ See `routers/summarize.py:161` for the library endpoint.
 
 When fetching a summary by ID, the response includes whether it's in your library:
 
-```bash
+```http
 GET /summary/{summary_id}
 ```
 
@@ -290,7 +291,7 @@ See `core/dependencies.py` for the authentication dependency.
 
 ### Save after summarization
 
-```python
+```bash
 # 1. Summarize a book
 response = requests.post(
     "https://api.readingassistant.com/summarize",
@@ -308,7 +309,7 @@ requests.post(
 
 ### Check if saved before displaying
 
-```python
+```bash
 # Get summary with save status
 response = requests.get(
     f"https://api.readingassistant.com/summary/{summary_id}",
@@ -323,7 +324,7 @@ else:
 
 ### Display library grid
 
-```python
+```bash
 # Fetch all saved summaries
 response = requests.get(
     "https://api.readingassistant.com/library",
