@@ -1,0 +1,236 @@
+---
+title: Authentication
+description: User authentication with Better Auth for secure access
+---
+
+Reading Assistant uses Better Auth for secure user authentication, allowing you to save summaries, create chats, and access your personal library.
+
+## Authentication system
+
+Better Auth provides a modern, secure authentication system with:
+
+- Email and password authentication
+- Session-based security
+- Secure cookie handling
+- Cross-origin request support
+
+## User registration
+
+<Steps>
+  <Step title="Navigate to sign up">
+    Click the **Sign Up** link from the home page or login page.
+  </Step>
+
+  <Step title="Create your account">
+    Provide your registration details:
+    
+    - Email address
+    - Password (with security requirements)
+    - Any additional required information
+  </Step>
+
+  <Step title="Complete registration">
+    Submit the form to create your account. You'll be automatically signed in and redirected to your intended destination.
+  </Step>
+</Steps>
+
+## Signing in
+
+<Steps>
+  <Step title="Go to the login page">
+    Click **Log In** from the navigation or you'll be redirected automatically when accessing protected features.
+  </Step>
+
+  <Step title="Enter credentials">
+    Provide your email and password.
+  </Step>
+
+  <Step title="Access your account">
+    After successful authentication, you'll be redirected to:
+    
+    - The page you were trying to access (if redirected)
+    - Your library (if logging in directly)
+    - The home page (default)
+  </Step>
+</Steps>
+
+## Protected features
+
+Some features require authentication:
+
+| Feature | Authentication Required |
+|---------|------------------------|
+| View summaries | No |
+| Upload books | No |
+| Save to library | Yes |
+| Chat with books | Yes |
+| Export PDFs | No |
+| View library | Yes |
+
+<Note>
+You can generate and view summaries without signing in, but you won't be able to save them or chat with the books.
+</Note>
+
+## Session management
+
+Reading Assistant uses session-based authentication:
+
+- Sessions are stored in secure cookies
+- Sessions persist across browser restarts
+- You remain logged in until you explicitly sign out
+- Sessions expire after a period of inactivity
+
+### Session cookies
+
+The session is stored in a cookie with:
+
+- Secure flag (HTTPS only in production)
+- HttpOnly flag (not accessible to JavaScript)
+- SameSite policy for CSRF protection
+
+## For developers
+
+### Authentication flow
+
+Better Auth handles the complete authentication flow:
+
+1. **Registration**: `POST /api/auth/signup`
+2. **Login**: `POST /api/auth/signin`
+3. **Logout**: `POST /api/auth/signout`
+4. **Session validation**: `GET /api/auth/get-session`
+
+### API authentication
+
+When making API requests, include the session token:
+
+**Using cookies (same-domain):**
+
+```bash
+GET /api/library
+Cookie: better-auth.session_token=<session-token>
+```
+
+**Using Authorization header (cross-domain):**
+
+```bash
+GET /api/library
+Authorization: Bearer <session-token>
+```
+
+### Extracting user ID
+
+The backend provides helper functions for authentication:
+
+```python
+from core.auth import get_current_user_id, get_optional_user_id
+
+# Requires authentication (raises 401 if not authenticated)
+user_id = await get_current_user_id(request)
+
+# Optional authentication (returns None if not authenticated)
+user_id = await get_optional_user_id(request)
+```
+
+### Session validation
+
+The system validates sessions by:
+
+1. Extracting the session token from cookies or Authorization header
+2. Calling Better Auth's `/api/auth/get-session` endpoint
+3. Verifying the response includes valid user information
+4. Returning the user ID for database operations
+
+**Session validation request:**
+
+```python
+async def validate_session(session_cookie: str):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{settings.BETTER_AUTH_URL}/api/auth/get-session",
+            cookies={settings.BETTER_AUTH_COOKIE_NAME: session_cookie},
+            timeout=10,
+        )
+    return response.json()
+```
+
+**Session response:**
+
+```json
+{
+  "user": {
+    "id": "user_123",
+    "email": "user@example.com",
+    "name": "User Name"
+  },
+  "session": {
+    "id": "session_xyz",
+    "userId": "user_123",
+    "expiresAt": "2026-04-03T10:00:00Z"
+  }
+}
+```
+
+## Configuration
+
+Better Auth is configured through environment variables:
+
+```bash
+# Better Auth configuration
+BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_COOKIE_NAME=better-auth.session_token
+```
+
+<Tip>
+In production, ensure `BETTER_AUTH_URL` points to your frontend domain where Better Auth is initialized.
+</Tip>
+
+## Error handling
+
+Common authentication errors:
+
+| Status | Error | Solution |
+|--------|-------|----------|
+| 401 | Session token not found | User needs to log in |
+| 401 | Invalid session | Session expired, log in again |
+| 403 | Not authorized | User doesn't have access to this resource |
+
+**Example error response:**
+
+```json
+{
+  "detail": "Session token not found"
+}
+```
+
+## Security considerations
+
+<CardGroup cols={2}>
+  <Card title="Secure cookies" icon="shield-check">
+    Sessions use HttpOnly, Secure, and SameSite flags for protection against XSS and CSRF attacks.
+  </Card>
+  
+  <Card title="Token validation" icon="key">
+    Every protected endpoint validates the session token with Better Auth before processing requests.
+  </Card>
+  
+  <Card title="HTTPS only" icon="lock">
+    In production, session cookies are only transmitted over HTTPS connections.
+  </Card>
+  
+  <Card title="Session expiry" icon="clock">
+    Sessions automatically expire after inactivity to limit the window of potential unauthorized access.
+  </Card>
+</CardGroup>
+
+<Warning>
+Never expose session tokens in URLs, logs, or client-side code. Always use secure cookies or Authorization headers.
+</Warning>
+
+## Logout
+
+To sign out:
+
+1. Click the Logout button in the navigation
+2. Your session is invalidated
+3. You're redirected to the home page
+4. You'll need to sign in again to access protected features

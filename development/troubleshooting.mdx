@@ -1,0 +1,604 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for Reading Assistant
+---
+
+This guide covers common problems you may encounter when developing or deploying Reading Assistant.
+
+## Installation issues
+
+### Python version mismatch
+
+**Problem:** `uv pip install` fails with Python version error
+
+**Solution:**
+
+```bash
+# Check Python version
+python --version
+# Must be 3.12 or higher
+
+# If too old, install Python 3.12
+sudo apt-get install python3.12 python3.12-venv
+
+# Create venv with specific version
+python3.12 -m venv venv
+source venv/bin/activate
+```
+
+### Node.js version mismatch
+
+**Problem:** Frontend build fails with Node.js compatibility error
+
+**Solution:**
+
+```bash
+# Check Node version
+node --version
+# Must be 24 or higher
+
+# Install Node 24 using nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+source ~/.bashrc
+nvm install 24
+nvm use 24
+```
+
+### uv package manager not found
+
+**Problem:** `uv: command not found`
+
+**Solution:**
+
+```bash
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source ~/.bashrc
+
+# Or use pip as fallback
+pip install -r requirements.txt
+```
+
+### Tesseract OCR not installed
+
+**Problem:** `pytesseract.pytesseract.TesseractNotFoundError`
+
+**Solution:**
+
+```bash
+# Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
+
+# macOS
+brew install tesseract
+
+# Verify installation
+tesseract --version
+```
+
+## Configuration issues
+
+### Missing API keys
+
+**Problem:** `OpenRouter API key not configured` or `OPENAI_API_KEY not set`
+
+**Solution:**
+
+1. Create `.env` file from template:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Add your API keys:
+   ```bash
+   OPENROUTER_API_KEY=your_key_here
+   OPENAI_API_KEY=your_key_here
+   ```
+
+3. Restart backend:
+   ```bash
+   # Development
+   uvicorn api:app --reload
+   
+   # Production
+   sudo systemctl restart reading-assistant-api
+   ```
+
+### CORS errors
+
+**Problem:** Browser console shows CORS policy errors
+
+**Solution:**
+
+Update `CORS_ORIGINS` in backend `.env`:
+
+```bash
+# Single origin
+CORS_ORIGINS=http://localhost:3000
+
+# Multiple origins (comma-separated)
+CORS_ORIGINS=http://localhost:3000,https://yourdomain.com
+```
+
+Restart backend after changing.
+
+### Database connection failed
+
+**Problem:** `sqlalchemy.exc.OperationalError: unable to open database file`
+
+**Solution:**
+
+1. Create data directory:
+   ```bash
+   mkdir -p data
+   ```
+
+2. Check file permissions:
+   ```bash
+   chmod 755 data
+   ```
+
+3. For PostgreSQL connection errors:
+   ```bash
+   # Check DATABASE_URL format
+   DATABASE_URL=postgresql://user:password@host:5432/database
+   
+   # Test connection
+   psql $DATABASE_URL -c "SELECT 1;"
+   ```
+
+### Better Auth database errors
+
+**Problem:** `Error: Database connection failed` in frontend
+
+**Solution:**
+
+1. Ensure PostgreSQL is running:
+   ```bash
+   sudo systemctl status postgresql
+   ```
+
+2. Create database if not exists:
+   ```bash
+   createdb reading_assistant_auth
+   ```
+
+3. Run migrations:
+   ```bash
+   cd client
+   npx drizzle-kit push
+   ```
+
+4. Check `DATABASE_URL` in `client/.env.local`:
+   ```bash
+   DATABASE_URL=postgresql://user:password@localhost/reading_assistant_auth
+   ```
+
+## Runtime errors
+
+### File upload fails
+
+**Problem:** "File too large" or upload timeout
+
+**Solution:**
+
+1. Check file size limits in `core/config.py:32`:
+   ```python
+   MAX_FILE_SIZE_MB: int = 50
+   ```
+
+2. Increase Nginx upload limit (if using Nginx):
+   ```nginx
+   client_max_body_size 50M;
+   ```
+
+3. For timeout issues, increase in `core/summarizer.py:115`:
+   ```python
+   async with httpx.AsyncClient(timeout=300.0) as client:
+   ```
+
+### PDF extraction fails
+
+**Problem:** `ExtractionError: Could not extract text from PDF`
+
+**Solution:**
+
+The PDF may be scanned/image-based. System should automatically fallback to OCR, but if not:
+
+1. Ensure Tesseract is installed (see above)
+
+2. Check available languages:
+   ```bash
+   tesseract --list-langs
+   ```
+
+3. Install additional languages if needed:
+   ```bash
+   sudo apt-get install tesseract-ocr-[lang]
+   ```
+
+4. Adjust language in `core/extractor.py:25`:
+   ```python
+   extract_from_scanned_pdf(file_bytes, lang="eng+amh")
+   ```
+
+### Summarization timeout
+
+**Problem:** Request times out during summary generation
+
+**Solution:**
+
+1. Increase timeout in `core/summarizer.py:115`:
+   ```python
+   async with httpx.AsyncClient(timeout=180.0) as client:
+   ```
+
+2. Reduce text length limit in `core/config.py:33`:
+   ```python
+   MAX_TEXT_LENGTH: int = 300_000
+   ```
+
+3. Check OpenRouter API status
+
+4. Try a different LLM model:
+   ```bash
+   LLM_MODEL=google/gemini-flash-1.5
+   ```
+
+### Chat indexing fails
+
+**Problem:** `RuntimeError: Indexing failed` when creating chat
+
+**Solution:**
+
+1. Check ChromaDB permissions:
+   ```bash
+   chmod -R 755 data/chroma
+   ```
+
+2. Verify OpenAI API key:
+   ```bash
+   echo $OPENAI_API_KEY
+   ```
+
+3. Check disk space:
+   ```bash
+   df -h
+   ```
+
+4. Clear ChromaDB cache if corrupted:
+   ```bash
+   rm -rf data/chroma/*
+   # Note: This will require re-indexing all books
+   ```
+
+### Streaming chat response fails
+
+**Problem:** Chat messages don't stream or connection drops
+
+**Solution:**
+
+1. Check Nginx timeout settings:
+   ```nginx
+   proxy_read_timeout 300s;
+   proxy_connect_timeout 300s;
+   ```
+
+2. Verify Server-Sent Events support in proxy
+
+3. Check browser console for connection errors
+
+4. Test direct API connection (bypass proxy):
+   ```bash
+   curl http://localhost:8000/api/chats/{chat_id}/messages \
+     -X POST \
+     -H "Content-Type: application/json" \
+     -d '{"content":"test"}'
+   ```
+
+## Frontend issues
+
+### Build fails
+
+**Problem:** `npm run build` errors
+
+**Solution:**
+
+1. Clear Node modules and reinstall:
+   ```bash
+   rm -rf node_modules package-lock.json
+   npm install
+   ```
+
+2. Check TypeScript errors:
+   ```bash
+   npm run lint
+   ```
+
+3. Verify environment variables in `.env.local`
+
+### Authentication not working
+
+**Problem:** Login/signup fails or session not persisted
+
+**Solution:**
+
+1. Check Better Auth URL matches:
+   ```bash
+   # Backend .env
+   BETTER_AUTH_URL=http://localhost:3000
+   
+   # Frontend .env.local
+   BETTER_AUTH_URL=http://localhost:3000
+   ```
+
+2. Verify database migrations ran:
+   ```bash
+   cd client
+   npx drizzle-kit push
+   ```
+
+3. Check session cookie settings (domain, secure flags)
+
+4. Clear browser cookies and retry
+
+### API calls fail from frontend
+
+**Problem:** `Failed to fetch` or network errors
+
+**Solution:**
+
+1. Verify API URL in `client/.env.local`:
+   ```bash
+   NEXT_PUBLIC_API_URL=http://localhost:8000
+   ```
+
+2. Check backend is running:
+   ```bash
+   curl http://localhost:8000/health
+   ```
+
+3. Check CORS configuration (see above)
+
+4. Review browser console for detailed errors
+
+## Deployment issues
+
+### Systemd service won't start
+
+**Problem:** `systemctl start reading-assistant-api` fails
+
+**Solution:**
+
+1. Check service status:
+   ```bash
+   sudo systemctl status reading-assistant-api
+   ```
+
+2. View logs:
+   ```bash
+   sudo journalctl -u reading-assistant-api -n 50
+   ```
+
+3. Verify paths in service file:
+   ```ini
+   WorkingDirectory=/home/deploy/reading-assistant
+   Environment="PATH=/home/deploy/reading-assistant/venv/bin"
+   ```
+
+4. Check file permissions:
+   ```bash
+   sudo chown -R deploy:deploy /home/deploy/reading-assistant
+   ```
+
+5. Test command manually:
+   ```bash
+   cd /home/deploy/reading-assistant
+   source venv/bin/activate
+   uvicorn api:app --host 0.0.0.0 --port 8000
+   ```
+
+### Nginx reverse proxy errors
+
+**Problem:** 502 Bad Gateway or connection refused
+
+**Solution:**
+
+1. Verify backend is running:
+   ```bash
+   netstat -tuln | grep 8000
+   ```
+
+2. Check Nginx error logs:
+   ```bash
+   sudo tail -f /var/log/nginx/error.log
+   ```
+
+3. Test Nginx configuration:
+   ```bash
+   sudo nginx -t
+   ```
+
+4. Verify proxy_pass URLs match running services:
+   ```nginx
+   proxy_pass http://localhost:3000;  # Frontend
+   proxy_pass http://localhost:8000;  # Backend
+   ```
+
+### SSL certificate issues
+
+**Problem:** HTTPS not working or certificate errors
+
+**Solution:**
+
+1. Verify Certbot installation:
+   ```bash
+   sudo certbot --version
+   ```
+
+2. Check certificate status:
+   ```bash
+   sudo certbot certificates
+   ```
+
+3. Renew certificate:
+   ```bash
+   sudo certbot renew
+   ```
+
+4. Test auto-renewal:
+   ```bash
+   sudo certbot renew --dry-run
+   ```
+
+### High memory usage
+
+**Problem:** Server runs out of memory
+
+**Solution:**
+
+1. Reduce uvicorn workers in service file:
+   ```ini
+   ExecStart=.../uvicorn api:app --workers 2
+   ```
+
+2. Limit ChromaDB cache size
+
+3. Add swap space:
+   ```bash
+   sudo fallocate -l 4G /swapfile
+   sudo chmod 600 /swapfile
+   sudo mkswap /swapfile
+   sudo swapon /swapfile
+   ```
+
+4. Monitor memory usage:
+   ```bash
+   free -h
+   htop
+   ```
+
+## Performance issues
+
+### Slow summarization
+
+**Problem:** Summary generation takes too long
+
+**Causes and solutions:**
+
+1. Large file size - Reduce `MAX_TEXT_LENGTH` in config
+2. Slow OCR - Reduce image DPI in `core/extractor.py`
+3. LLM model slow - Try faster model (Gemini Flash)
+4. Network latency - Check OpenRouter API status
+
+### Slow chat responses
+
+**Problem:** Chat takes long to respond
+
+**Solutions:**
+
+1. Reduce retrieved chunks in `core/config.py:42`:
+   ```python
+   TOP_K = 3  # Default is 5
+   ```
+
+2. Reduce chunk size for faster indexing:
+   ```python
+   CHUNK_SIZE = 512  # Default is 1024
+   ```
+
+3. Use faster embedding model
+
+4. Enable streaming to show partial responses
+
+### Database performance
+
+**Problem:** Slow queries or timeouts
+
+**Solutions:**
+
+1. Switch from SQLite to PostgreSQL for production
+
+2. Add database indexes (already included in models)
+
+3. Enable query logging to identify slow queries:
+   ```python
+   engine = create_engine(url, echo=True)
+   ```
+
+4. Consider connection pooling for high traffic
+
+## Debugging tips
+
+### Enable debug logging
+
+Backend `.env`:
+```bash
+LOG_LEVEL=DEBUG
+```
+
+View detailed logs:
+```bash
+tail -f logs/app.log
+```
+
+### Test individual components
+
+**Test text extraction:**
+```python
+from core.extractor import extract_book_content
+
+with open("book.pdf", "rb") as f:
+    content = extract_book_content(f.read(), "book.pdf")
+print(len(content))
+```
+
+**Test summarization:**
+```python
+import asyncio
+from core.summarizer import generate_summary
+
+result = asyncio.run(generate_summary("Sample text..."))
+print(result)
+```
+
+**Test RAG indexing:**
+```python
+from rag import index_book
+
+chunks = index_book(
+    summary_id="test-123",
+    content="Book content...",
+    title="Test Book"
+)
+print(f"Indexed {chunks} chunks")
+```
+
+### Check API directly
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Test summarization (with text)
+curl -X POST http://localhost:8000/api/summarize \
+  -F "text=This is a test book content..."
+
+# Get summary
+curl http://localhost:8000/api/summary/{id}
+```
+
+## Getting help
+
+If you encounter issues not covered here:
+
+1. Check application logs: `logs/app.log`
+2. Check service logs: `journalctl -u reading-assistant-api`
+3. Review [Architecture](/development/architecture) for system overview
+4. Check GitHub issues for similar problems
+5. Create new GitHub issue with:
+   - Error message and stack trace
+   - Steps to reproduce
+   - Environment details (OS, Python/Node versions)
+   - Relevant log excerpts

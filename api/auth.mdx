@@ -1,0 +1,185 @@
+---
+title: 'Authentication'
+description: 'Authentication flow and session management'
+---
+
+## Overview
+
+Reading Assistant uses [Better Auth](https://www.better-auth.com/) for authentication. Better Auth is a flexible authentication framework that provides session management, OAuth providers, and security features.
+
+## Authentication flow
+
+Authentication is handled by the Better Auth service, which runs separately from the Reading Assistant API. The typical flow is:
+
+1. User authenticates through the Better Auth service
+2. Better Auth creates a session and returns a session token
+3. Client includes the session token in API requests
+4. Reading Assistant API validates the token with Better Auth
+
+## Session tokens
+
+Session tokens can be provided in two ways:
+
+### Authorization header (recommended)
+
+Use the `Authorization` header with a Bearer token. This method works for cross-domain requests:
+
+```bash
+Authorization: Bearer <session-token>
+```
+
+**Example**:
+```bash
+curl https://your-domain.com/api/chats \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+### Cookie (same-domain)
+
+For same-domain requests or local development, the session token can be sent as a cookie:
+
+```bash
+Cookie: better-auth.session-token=<session-token>
+```
+
+The cookie name can be configured via the `BETTER_AUTH_COOKIE_NAME` environment variable.
+
+## Session validation
+
+The API validates session tokens by making a request to Better Auth:
+
+```
+GET {BETTER_AUTH_URL}/api/auth/get-session
+```
+
+If the session is valid, Better Auth returns user information:
+
+```json
+{
+  "user": {
+    "id": "user_abc123",
+    "email": "user@example.com",
+    "name": "John Doe"
+  },
+  "session": {
+    "id": "session_xyz789",
+    "expiresAt": "2026-03-10T10:30:00Z"
+  }
+}
+```
+
+## Authentication requirements by endpoint
+
+### Public endpoints (no authentication required)
+
+- `GET /health` - Health check
+- `POST /api/summarize` - Create summary (optional auth)
+- `GET /api/summary/:id` - Get summary (optional auth)
+- `GET /api/summary/:id/pdf` - Export PDF
+
+### Protected endpoints (authentication required)
+
+**Library management**:
+- `POST /api/summary/:id/save` - Save to library
+- `DELETE /api/summary/:id/save` - Unsave from library
+- `GET /api/library` - List saved summaries
+
+**Chat management**:
+- `POST /api/chats` - Create chat
+- `GET /api/chats` - List chats
+- `GET /api/chats/:id` - Get chat with messages
+- `POST /api/chats/:id/messages` - Send message
+- `DELETE /api/chats/:id` - Delete chat
+
+## Error responses
+
+### Missing authentication
+
+When authentication is required but no token is provided:
+
+```json
+{
+  "detail": "Session token not found"
+}
+```
+
+HTTP Status: `401 Unauthorized`
+
+### Invalid session
+
+When the provided token is invalid or expired:
+
+```json
+{
+  "detail": "Invalid session"
+}
+```
+
+HTTP Status: `401 Unauthorized`
+
+### Insufficient permissions
+
+When trying to access resources owned by another user:
+
+```json
+{
+  "detail": "Not authorized to access this chat"
+}
+```
+
+HTTP Status: `403 Forbidden`
+
+## Configuration
+
+Configure Better Auth integration using environment variables:
+
+```bash
+# Better Auth service URL
+BETTER_AUTH_URL=https://auth.your-domain.com
+
+# Session cookie name (default: better-auth.session-token)
+BETTER_AUTH_COOKIE_NAME=better-auth.session-token
+
+# CORS origins that can send authenticated requests
+CORS_ORIGINS=https://your-domain.com,https://www.your-domain.com
+```
+
+## Security considerations
+
+### HTTPS in production
+
+Always use HTTPS in production to protect session tokens in transit.
+
+### CORS configuration
+
+Configure `CORS_ORIGINS` to only include trusted domains. The API will reject requests from unauthorized origins.
+
+### Session expiration
+
+Sessions are managed by Better Auth and will expire based on your Better Auth configuration. Clients should handle `401 Unauthorized` responses by prompting users to re-authenticate.
+
+### Token storage
+
+Store session tokens securely:
+- **Web apps**: Use `httpOnly` cookies when possible
+- **Mobile apps**: Use secure platform-specific storage (Keychain, Keystore)
+- **Never** store tokens in localStorage or expose them in URLs
+
+## Testing authentication
+
+For development and testing, you can obtain a session token by:
+
+1. Starting the Better Auth service locally
+2. Authenticating through the web UI
+3. Extracting the session token from cookies or the API response
+4. Using the token in API requests
+
+**Example test request**:
+```bash
+# Get your session token
+SESSION_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+# Test authenticated endpoint
+curl https://localhost:8000/api/library \
+  -H "Authorization: Bearer $SESSION_TOKEN"
+```

@@ -1,0 +1,324 @@
+---
+title: PDF export
+description: Export book summaries as formatted PDF documents with multilingual support
+---
+
+## Overview
+
+Reading Assistant can export your generated summaries as beautifully formatted PDF documents. The export system supports multiple languages including English, Amharic, and other scripts with proper font rendering.
+
+## Exporting a summary
+
+To download a summary as PDF:
+
+```bash
+GET /summary/{summary_id}/pdf
+```
+
+**Response**: PDF file with proper headers
+```
+Content-Type: application/pdf
+Content-Disposition: attachment; filename*=UTF-8''Book_Title_summary.pdf
+```
+
+The filename is automatically generated from the book title (truncated to 50 characters) with proper URL encoding to support Unicode characters.
+
+See `routers/summarize.py:114` for the export endpoint.
+
+## PDF structure
+
+Exported PDFs follow a consistent, professional structure:
+
+### Header section
+
+**Title**: Large, bold text (24pt)
+
+**Author**: Italic text below the title (if available)
+
+**Spacing**: 0.3 inch gap before the summary begins
+
+### Summary sections
+
+Each section includes:
+
+1. **Core Thesis**: The book's main argument in one sentence
+2. **Key Insights**: Bulleted list of 5-7 important ideas
+3. **Actionable Takeaways**: Bulleted list of 3-5 practical actions
+4. **Read This If**: Who should read the book and why
+
+### Chapter summaries
+
+**Heading**: "Chapter Summaries" section divider
+
+**Chapter format**: Each chapter includes:
+- Chapter number and title (bold, 12pt)
+- Structured summary with sections:
+  - Core Idea
+  - Key Points (bulleted)
+  - Example
+  - Actionable Takeaway
+
+See `core/pdf_export.py:237` for the PDF builder implementation.
+
+## Multilingual support
+
+The PDF export system handles multiple scripts and languages seamlessly.
+
+### Font system
+
+<Tabs>
+  <Tab title="Latin scripts">
+    **Font family**: DejaVu Sans
+    
+    **Variants**:
+    - Regular: DejaVuSans.ttf
+    - Bold: DejaVuSans-Bold.ttf
+    - Italic: DejaVuSans-Oblique.ttf
+    
+    **Coverage**: English, French, German, Spanish, and most European languages
+  </Tab>
+  <Tab title="Ethiopic script">
+    **Font family**: Noto Sans Ethiopic
+    
+    **Variants**:
+    - Regular: NotoSansEthiopic-Regular.ttf
+    - Bold: NotoSansEthiopic-Bold.ttf
+    
+    **Coverage**: Amharic, Tigrinya, and other Ge'ez-based languages
+    
+    **Unicode range**: U+1200 to U+137F
+  </Tab>
+  <Tab title="Font fallback">
+    If custom fonts fail to load, the system falls back to:
+    - Helvetica (regular)
+    - Helvetica-Bold
+    - Helvetica-Oblique
+    
+    A warning is logged: `"Failed to register fonts: {error}. Using fallback."`
+  </Tab>
+</Tabs>
+
+Fonts are located in the `fonts/` directory (see `core/pdf_export.py:23`).
+
+### Automatic script detection
+
+The PDF generator automatically detects Ethiopic characters and applies the correct font:
+
+```python
+def _is_ethiopic(char: str) -> bool:
+    """Check if a character is Ethiopic/Ge'ez script."""
+    code = ord(char)
+    return 0x1200 <= code <= 0x137F
+
+def _prepare_text(text: str) -> str:
+    """Wrap Ethiopic characters with font tags for ReportLab."""
+    # Scans text character by character
+    # Wraps Ethiopic segments with <font name="Ethiopic">...</font>
+    # Leaves Latin text in default font
+```
+
+This allows mixed-language text like:
+- "The book discusses የምግብ ዝግጅት (food preparation) in detail"
+- Titles with both English and Amharic
+- Chapter summaries with code-switched content
+
+See `core/pdf_export.py:39` for script detection logic.
+
+## Markdown rendering
+
+Chapter summaries often contain Markdown formatting, which is converted to PDF elements:
+
+### Bullet lists
+
+**Pattern**: Lines starting with `-`, `*`, or `•`
+
+**Rendering**: Converted to ReportLab `ListFlowable` with bullet points
+
+**Indentation**: 10-point left indent for visual hierarchy
+
+Example:
+```markdown
+- First key point
+- Second key point
+- Third key point
+```
+
+### Inline formatting
+
+**Bold**: `**text**` → removed (ReportLab handles bold via font)
+
+**Italic**: `*text*` → removed
+
+**Purpose**: Simplifies rendering while preserving readability
+
+See `core/pdf_export.py:165` for the Markdown parser.
+
+### Paragraph spacing
+
+Consecutive bullet lists are merged automatically:
+- Detects bullet pattern with regex
+- Groups consecutive bullets together
+- Adds proper spacing (0.08 inch) after each element
+
+## Styling and layout
+
+### Page settings
+
+**Size**: US Letter (8.5" × 11")
+
+**Margins**: Default ReportLab margins (~0.75 inch)
+
+**Layout**: Single column, top-to-bottom flow
+
+### Text styles
+
+<Accordion title="Title style">
+**Font**: DejaVuSans-Bold (or Helvetica-Bold)
+
+**Size**: 24pt
+
+**Spacing**: 12pt after
+
+**Color**: Black (default)
+</Accordion>
+
+<Accordion title="Heading style">
+**Font**: DejaVuSans-Bold
+
+**Size**: 14pt
+
+**Spacing**: 8pt after
+
+**Use case**: Section headers ("Core Thesis", "Key Insights", etc.)
+</Accordion>
+
+<Accordion title="Body style">
+**Font**: DejaVuSans
+
+**Size**: 11pt
+
+**Spacing**: 8pt after
+
+**Use case**: All content text, bullet points
+</Accordion>
+
+<Accordion title="Chapter title style">
+**Font**: DejaVuSans-Bold
+
+**Size**: 12pt
+
+**Spacing**: 10pt before, 6pt after
+
+**Format**: "1. Chapter Title"
+</Accordion>
+
+See `core/pdf_export.py:103` for the style definitions.
+
+## Technical implementation
+
+The PDF generation uses the ReportLab library with a custom builder pattern:
+
+### Builder class
+
+```python
+class SummaryPDFBuilder:
+    def __init__(self, data: dict):
+        self.data = data
+        self.styles = PDFStyles()
+        self.story = []  # List of flowables
+    
+    def build(self) -> bytes:
+        self._add_header()
+        self._add_summary_sections()
+        self._add_chapters()
+        return self._render()
+```
+
+**Flow**: The builder constructs a "story" of flowable elements (paragraphs, lists, spacers) that ReportLab renders into a PDF.
+
+See `core/pdf_export.py:237` for the complete builder.
+
+### Rendering process
+
+1. **Parse summary data**: Extract metadata, summary, and chapters from JSON
+2. **Build flowables**: Convert each section to ReportLab elements
+3. **Apply styles**: Use predefined styles for consistent formatting
+4. **Handle fonts**: Detect and apply appropriate fonts for each script
+5. **Generate PDF**: Use `SimpleDocTemplate` to render the story
+6. **Return bytes**: Stream PDF bytes directly to the response
+
+See `core/pdf_export.py:331` for the public API:
+
+```python
+def generate_summary_pdf(data: dict) -> bytes:
+    """Generate PDF from summary data.
+    
+    Args:
+        data: Dictionary containing metadata, summary, and chapters.
+    
+    Returns:
+        PDF file as bytes.
+    """
+    return SummaryPDFBuilder(data).build()
+```
+
+## Error handling
+
+<Info>
+The PDF export endpoint fetches the summary from the database first, ensuring the data exists before attempting to generate the PDF.
+</Info>
+
+**404 Error**: If the summary ID doesn't exist
+```json
+{
+  "detail": "Summary not found"
+}
+```
+
+**Font loading**: If fonts fail to load, the system:
+1. Logs a warning
+2. Falls back to Helvetica fonts
+3. Continues generating the PDF (some Unicode characters may not render)
+
+**Text truncation**: Very long chapter summaries are wrapped automatically by ReportLab to fit the page width.
+
+## Usage examples
+
+### Basic export
+
+```bash
+curl -o summary.pdf https://api.readingassistant.com/summary/abc123/pdf
+```
+
+### With authentication
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  -o summary.pdf \
+  https://api.readingassistant.com/summary/abc123/pdf
+```
+
+### Programmatic download (Python)
+
+```python
+import requests
+
+response = requests.get(
+    "https://api.readingassistant.com/summary/abc123/pdf",
+    headers={"Authorization": f"Bearer {token}"}
+)
+
+with open("summary.pdf", "wb") as f:
+    f.write(response.content)
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Library management" href="/features/library-management">
+    Save and organize your summaries
+  </Card>
+  <Card title="Book summarization" href="/features/book-summarization">
+    Learn how summaries are generated
+  </Card>
+</CardGroup>

@@ -1,0 +1,221 @@
+---
+title: Multi-format support
+description: Upload books in PDF, EPUB, plain text, or fetch content from URLs
+---
+
+## Supported formats
+
+Reading Assistant supports multiple input formats, making it easy to summarize content from various sources:
+
+<CardGroup cols={2}>
+  <Card title="PDF" icon="file-pdf">
+    Native and scanned PDFs with OCR support
+  </Card>
+  <Card title="EPUB" icon="book">
+    Digital books and e-publications
+  </Card>
+  <Card title="Plain text" icon="file-text">
+    Direct text input or .txt files
+  </Card>
+  <Card title="URLs" icon="link">
+    Web pages, articles, or online documents
+  </Card>
+</CardGroup>
+
+## PDF support
+
+The PDF extractor handles both native PDFs (with embedded text) and scanned/image-based PDFs.
+
+### Native PDFs
+
+For PDFs with embedded text, the system uses PyMuPDF to extract content efficiently:
+
+```python
+def extract_from_pdf(file_bytes: bytes) -> str:
+    """Extract text from PDF bytes."""
+    doc = pymupdf.open(stream=file_bytes, filetype="pdf")
+    
+    text_parts = []
+    for page in doc:
+        page_text = page.get_text().strip()
+        if page_text:
+            text_parts.append(page_text)
+    
+    return "\n\n".join(text_parts)
+```
+
+See `core/extractor.py:63` for the full implementation.
+
+### Scanned PDFs with OCR
+
+When a PDF contains no extractable text, the system automatically falls back to OCR (Optical Character Recognition):
+
+**Technology**: Tesseract OCR with parallel processing
+
+**Languages**: Supports multiple languages including English and Amharic (`eng+amh`)
+
+**Preprocessing**: Enhances images for better accuracy
+- Converts to grayscale
+- Increases contrast by 1.5x
+- Optimizes for text recognition
+
+**Performance**: Processes up to 10 pages in parallel using `ThreadPoolExecutor`
+
+<Info>
+OCR is automatically triggered when `extract_from_pdf` raises an `ExtractionError`. The system logs "Falling back to OCR extraction" before processing the scanned document.
+</Info>
+
+<Note>
+Scanned PDFs take longer to process due to image conversion and OCR. A 100-page scanned book may take 2-5 minutes depending on image quality.
+</Note>
+
+## EPUB support
+
+EPUB files are parsed using the `ebooklib` library, which handles the complex structure of digital books:
+
+```python
+def extract_from_epub(file_bytes: bytes) -> str:
+    """Extract text from EPUB bytes."""
+    book = epub.read_epub(BytesIO(file_bytes))
+    
+    text_parts = []
+    for item in book.get_items_of_type(ITEM_DOCUMENT):
+        content = item.get_content()
+        soup = BeautifulSoup(content, "html.parser")
+        text = soup.get_text(separator="\n", strip=True)
+        if text:
+            text_parts.append(text)
+    
+    return "\n\n".join(text_parts)
+```
+
+The extractor:
+- Reads all document items from the EPUB container
+- Parses HTML content using BeautifulSoup
+- Extracts clean text with proper formatting
+- Preserves reading order
+
+See `core/extractor.py:95` for details.
+
+## URL support
+
+You can provide a URL to summarize web content, online articles, or remotely hosted books:
+
+### Supported URL types
+
+<Tabs>
+  <Tab title="Web pages">
+    Regular HTML pages are fetched and cleaned:
+    - JavaScript, CSS, and style tags removed
+    - Navigation, headers, footers stripped
+    - Main content extracted using BeautifulSoup
+    - Text normalized with proper line breaks
+  </Tab>
+  <Tab title="PDF links">
+    URLs pointing to PDF files are automatically detected and processed:
+    - By `Content-Type: application/pdf` header
+    - By `.pdf` file extension in URL
+    - By PDF magic bytes (`%PDF` signature)
+    
+    The PDF is downloaded and processed like an uploaded file.
+  </Tab>
+  <Tab title="EPUB links">
+    EPUB files are detected similarly:
+    - By `Content-Type: application/epub` header
+    - By `.epub` file extension
+    - By ZIP magic bytes (EPUB is a ZIP container)
+  </Tab>
+</Tabs>
+
+### URL fetching details
+
+**Implementation**: Uses `curl_cffi` to impersonate a real browser (Chrome)
+
+**Timeout**: 30 seconds per request
+
+**Retries**: Up to 3 attempts with exponential backoff (2^attempt seconds)
+
+**Redirects**: Automatically follows redirects to final destination
+
+See `core/extractor.py:137` for the complete URL extraction logic.
+
+<Info>
+The system logs which content type it's processing: "Processing as PDF", "Processing as EPUB", or "Processing as HTML page".
+</Info>
+
+## Plain text support
+
+You can paste text directly into the summarization API:
+
+```bash
+curl -X POST https://api.readingassistant.com/summarize \
+  -F 'text=Your book content here...'
+```
+
+This is useful for:
+- Quick text snippets
+- Content copied from documents
+- Books already extracted from other formats
+- Testing and development
+
+<Note>
+Plain text must be at least 500 characters (configurable via `MIN_TEXT_LENGTH` setting) to generate meaningful summaries.
+</Note>
+
+## File size limits
+
+To ensure good performance and prevent abuse:
+
+**Maximum file size**: 50 MB (configurable via `MAX_FILE_SIZE_MB`)
+
+**Maximum text length**: 500,000 characters (configurable via `MAX_TEXT_LENGTH`)
+
+**Content processed**: Up to 400,000 characters sent to the LLM
+
+Files exceeding these limits will return an HTTP 400 error with a descriptive message.
+
+## Error handling
+
+All extraction functions raise `ExtractionError` with descriptive messages when they fail:
+
+<Accordion title="Common error messages">
+- `"Unsupported file type: {filename}. Use PDF or EPUB."`
+- `"PDF has no pages"`
+- `"Could not extract text from PDF. It may be scanned/image-based."`
+- `"OCR could not extract any text from the PDF"`
+- `"Could not extract text from EPUB"`
+- `"Failed to fetch URL after 3 attempts: {error}"`
+</Accordion>
+
+These errors are caught by the API layer (`routers/summarize.py:41`) and converted to HTTP 400 responses with the error message in the response body.
+
+## API endpoint
+
+The `/summarize` endpoint accepts multiple input formats in a single request:
+
+```python
+@router.post("/summarize")
+async def summarize_book(
+    url: str | None = Form(None),
+    file: UploadFile | None = File(None),
+    text: str | None = Form(None),
+):
+    """Summarize a book from URL, PDF, EPUB, or pasted text."""
+```
+
+**Priority**: If multiple inputs are provided, the system processes them in order: `url` → `file` → `text`
+
+**Content type validation**: File uploads must have `content_type` of `application/pdf` or `application/epub+zip`
+
+See `routers/summarize.py:21` for the complete implementation.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Book summarization" href="/features/book-summarization">
+    Understand how AI generates structured summaries
+  </Card>
+  <Card title="PDF export" href="/features/pdf-export">
+    Export your summaries as formatted PDFs
+  </Card>
+</CardGroup>

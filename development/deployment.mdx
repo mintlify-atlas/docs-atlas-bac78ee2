@@ -1,0 +1,453 @@
+---
+title: Deployment
+description: Guide to deploying Reading Assistant to production
+---
+
+This guide covers deploying Reading Assistant to a Linux server using systemd services.
+
+## Prerequisites
+
+Before deploying, ensure you have:
+
+- Linux server (Ubuntu/Debian recommended)
+- Python 3.12+ installed
+- Node.js 24+ installed
+- `uv` Python package manager
+- Git installed
+- PostgreSQL database (for Better Auth)
+- API keys for OpenRouter and OpenAI
+- Domain name (optional but recommended)
+
+## Initial setup
+
+### 1. Clone repository
+
+```bash
+cd /home/deploy
+git clone <repository-url> reading-assistant
+cd reading-assistant
+```
+
+### 2. Configure backend
+
+Create and configure backend environment:
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Required environment variables:
+
+```bash
+# AI Services
+OPENROUTER_API_KEY=your_openrouter_key
+OPENAI_API_KEY=your_openai_key
+LLM_MODEL=google/gemini-3-flash-preview
+
+# Database
+DATABASE_URL=sqlite:///data/app.db
+# Or for PostgreSQL:
+# DATABASE_URL=postgresql://user:password@localhost/reading_assistant
+
+# Auth
+BETTER_AUTH_URL=https://yourdomain.com
+# Or for development:
+# BETTER_AUTH_URL=http://localhost:3000
+
+# CORS
+CORS_ORIGINS=https://yourdomain.com,http://localhost:3000
+
+# Logging
+LOG_LEVEL=INFO
+```
+
+### 3. Install backend dependencies
+
+```bash
+python -m venv venv
+source venv/bin/activate
+uv pip install -r requirements.txt
+```
+
+### 4. Install Tesseract (for OCR)
+
+For Ubuntu/Debian:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
+
+# Optional: Add Amharic language support
+sudo apt-get install -y tesseract-ocr-amh
+```
+
+### 5. Configure frontend
+
+```bash
+cd client
+cp .env.local.example .env.local
+nano .env.local
+```
+
+Required environment variables:
+
+```bash
+# Backend API
+NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+# Or for same-domain deployment:
+# NEXT_PUBLIC_API_URL=https://yourdomain.com/api
+
+# Auth Database (PostgreSQL required)
+DATABASE_URL=postgresql://user:password@localhost/reading_assistant_auth
+
+# Better Auth
+BETTER_AUTH_SECRET=<generate-random-32-char-string>
+BETTER_AUTH_URL=https://yourdomain.com
+```
+
+### 6. Setup auth database
+
+Create PostgreSQL database and run migrations:
+
+```bash
+# Create database
+createdb reading_assistant_auth
+
+# Run Drizzle migrations
+cd client
+npx drizzle-kit push
+```
+
+### 7. Install frontend dependencies and build
+
+```bash
+cd client
+npm install
+npm run build
+```
+
+## Systemd services
+
+### Backend service
+
+Create `/etc/systemd/system/reading-assistant-api.service`:
+
+```ini
+[Unit]
+Description=Reading Assistant API
+After=network.target
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/home/deploy/reading-assistant
+Environment="PATH=/home/deploy/reading-assistant/venv/bin"
+ExecStart=/home/deploy/reading-assistant/venv/bin/uvicorn api:app --host 0.0.0.0 --port 8000 --workers 4
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Frontend service
+
+Create `/etc/systemd/system/reading-assistant-ui.service`:
+
+```ini
+[Unit]
+Description=Reading Assistant UI
+After=network.target
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/home/deploy/reading-assistant/client
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=10
+Environment="PORT=3000"
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Enable and start services
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable reading-assistant-api
+sudo systemctl enable reading-assistant-ui
+sudo systemctl start reading-assistant-api
+sudo systemctl start reading-assistant-ui
+```
+
+### Check service status
+
+```bash
+sudo systemctl status reading-assistant-api
+sudo systemctl status reading-assistant-ui
+```
+
+### View logs
+
+```bash
+# Service logs
+sudo journalctl -u reading-assistant-api -f
+sudo journalctl -u reading-assistant-ui -f
+
+# Application logs
+tail -f /home/deploy/reading-assistant/logs/app.log
+```
+
+## Nginx reverse proxy
+
+Recommended setup with Nginx:
+
+### Install Nginx
+
+```bash
+sudo apt-get install -y nginx
+```
+
+### Configure site
+
+Create `/etc/nginx/sites-available/reading-assistant`:
+
+```nginx
+server {
+    listen 80;
+    server_name yourdomain.com;
+
+    # Frontend
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Backend API
+    location /api {
+        proxy_pass http://localhost:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Increase timeout for long-running summarization
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+    }
+
+    # Health check
+    location /health {
+        proxy_pass http://localhost:8000/health;
+    }
+
+    # Increase upload size for large PDFs
+    client_max_body_size 50M;
+}
+```
+
+### Enable site
+
+```bash
+sudo ln -s /etc/nginx/sites-available/reading-assistant /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+### SSL with Let's Encrypt
+
+```bash
+sudo apt-get install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d yourdomain.com
+```
+
+Certbot will automatically configure SSL and set up auto-renewal.
+
+## Deployment script
+
+The included `deploy.sh` script automates updates:
+
+```bash
+#!/bin/bash
+set -e
+
+cd /home/deploy/reading-assistant
+
+echo "Pulling latest changes..."
+git pull
+
+echo "Updating backend dependencies..."
+source venv/bin/activate
+uv pip install -r requirements.txt --quiet
+
+echo "Updating frontend dependencies..."
+cd client
+npm install --silent
+
+echo "Building frontend..."
+npm run build
+
+echo "Restarting services..."
+sudo systemctl restart reading-assistant-api
+sudo systemctl restart reading-assistant-ui
+
+echo "Done!"
+```
+
+Make it executable:
+
+```bash
+chmod +x deploy.sh
+```
+
+Run deployments:
+
+```bash
+./deploy.sh
+```
+
+## Database migrations
+
+### Backend (SQLAlchemy)
+
+For schema changes, you may want to add Alembic:
+
+```bash
+uv pip install alembic
+alembic init alembic
+# Configure alembic.ini and env.py
+alembic revision --autogenerate -m "Description"
+alembic upgrade head
+```
+
+### Frontend (Drizzle)
+
+For auth schema changes:
+
+```bash
+cd client
+npx drizzle-kit generate
+npx drizzle-kit push
+```
+
+## Monitoring
+
+### Health check endpoint
+
+Backend provides a health check at `/health`:
+
+```bash
+curl http://localhost:8000/health
+# {"status":"ok"}
+```
+
+### Log monitoring
+
+Application logs are stored in `logs/app.log` with rotation:
+- Maximum 5 MB per file
+- 5 backup files kept
+- Includes timestamps and log levels
+
+### System monitoring
+
+Monitor service status:
+
+```bash
+# Check if services are running
+systemctl is-active reading-assistant-api
+systemctl is-active reading-assistant-ui
+
+# View recent failures
+systemctl list-units --failed
+```
+
+## Backup strategy
+
+### Database backup (SQLite)
+
+```bash
+# Backup SQLite database
+cp data/app.db data/backups/app-$(date +%Y%m%d).db
+```
+
+### Database backup (PostgreSQL)
+
+```bash
+# Backup PostgreSQL databases
+pg_dump reading_assistant > backups/backend-$(date +%Y%m%d).sql
+pg_dump reading_assistant_auth > backups/auth-$(date +%Y%m%d).sql
+```
+
+### Vector store backup
+
+```bash
+# Backup ChromaDB data
+tar -czf backups/chroma-$(date +%Y%m%d).tar.gz data/chroma/
+```
+
+## Scaling considerations
+
+### Horizontal scaling
+
+- Deploy multiple API instances behind load balancer
+- Use PostgreSQL for shared database state
+- Consider managed vector database (Pinecone, Weaviate)
+- Add Redis for caching and session storage
+
+### Vertical scaling
+
+- Increase uvicorn workers: `--workers 8`
+- Allocate more memory for vector operations
+- Use faster storage for ChromaDB
+
+### Performance optimization
+
+- Enable gzip compression in Nginx
+- Configure CDN for frontend assets
+- Add Redis cache for frequently accessed summaries
+- Implement background job queue for indexing
+
+## Security checklist
+
+- [ ] Use HTTPS only (redirect HTTP to HTTPS)
+- [ ] Secure API keys in environment variables (never commit)
+- [ ] Enable firewall (only ports 80, 443, 22)
+- [ ] Use strong PostgreSQL passwords
+- [ ] Set up regular automated backups
+- [ ] Keep dependencies updated
+- [ ] Configure rate limiting in Nginx
+- [ ] Use non-root user for services
+- [ ] Restrict file permissions on `.env` files
+- [ ] Enable fail2ban for SSH protection
+
+## Environment-specific configurations
+
+### Development
+
+```bash
+LOG_LEVEL=DEBUG
+DATABASE_URL=sqlite:///data/app.db
+BETTER_AUTH_URL=http://localhost:3000
+CORS_ORIGINS=http://localhost:3000
+```
+
+### Production
+
+```bash
+LOG_LEVEL=INFO
+DATABASE_URL=postgresql://...
+BETTER_AUTH_URL=https://yourdomain.com
+CORS_ORIGINS=https://yourdomain.com
+```
+
+## Troubleshooting deployment
+
+See [Troubleshooting](/development/troubleshooting) for common deployment issues and solutions.

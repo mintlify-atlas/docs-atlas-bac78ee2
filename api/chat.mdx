@@ -1,0 +1,468 @@
+---
+title: 'Chat endpoints'
+description: 'Create and manage conversations about books'
+---
+
+## Create chat
+
+<Card title="POST /api/chats" icon="comments">
+  Create a new chat session for a book
+</Card>
+
+Creates a chat conversation linked to a specific summary. The book content is automatically indexed for retrieval-augmented generation (RAG) if not already indexed.
+
+### Authentication
+
+Required. Users can only create chats for their own account.
+
+### Request
+
+<ParamField body="summary_id" type="string" required>
+  ID of the summary to chat about
+</ParamField>
+
+### Response
+
+<ResponseField name="id" type="string">
+  Unique chat identifier
+</ResponseField>
+
+<ResponseField name="summary_id" type="string">
+  ID of the associated summary
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  Chat title (auto-generated from first message)
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 timestamp of creation
+</ResponseField>
+
+<ResponseField name="updated_at" type="string">
+  ISO 8601 timestamp of last update
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/chats \
+  -H "Authorization: Bearer <session-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "summary_id": "sum_abc123"
+  }'
+```
+
+```json
+{
+  "id": "chat_xyz789",
+  "summary_id": "sum_abc123",
+  "title": "Chat about The Art of Learning",
+  "created_at": "2026-03-03T10:30:00Z",
+  "updated_at": "2026-03-03T10:30:00Z"
+}
+```
+
+### Errors
+
+<ResponseField name="401 Unauthorized">
+  ```json
+  {
+    "detail": "Session token not found"
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="404 Not Found">
+  ```json
+  {
+    "detail": "Summary not found"
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="500 Internal Server Error">
+  ```json
+  {
+    "detail": "Failed to index book for chat"
+  }
+  ```
+</ResponseField>
+
+---
+
+## List chats
+
+<Card title="GET /api/chats" icon="list">
+  Get all chats for the current user
+</Card>
+
+Retrieve a list of all chats belonging to the authenticated user. Optionally filter by summary or include book titles.
+
+### Authentication
+
+Required.
+
+### Query parameters
+
+<ParamField query="summary_id" type="string">
+  Filter chats by summary ID
+</ParamField>
+
+<ParamField query="include_book" type="boolean" default={false}>
+  Include book titles in the response
+</ParamField>
+
+### Response
+
+<ResponseField name="chats" type="array">
+  Array of chat objects
+  
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Chat identifier
+    </ResponseField>
+    
+    <ResponseField name="summary_id" type="string">
+      Associated summary ID
+    </ResponseField>
+    
+    <ResponseField name="title" type="string">
+      Chat title
+    </ResponseField>
+    
+    <ResponseField name="created_at" type="string">
+      ISO 8601 creation timestamp
+    </ResponseField>
+    
+    <ResponseField name="updated_at" type="string">
+      ISO 8601 last update timestamp
+    </ResponseField>
+    
+    <ResponseField name="book_title" type="string">
+      Book title (only if `include_book=true`)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example: List all chats
+
+```bash
+curl https://your-domain.com/api/chats \
+  -H "Authorization: Bearer <session-token>"
+```
+
+```json
+{
+  "chats": [
+    {
+      "id": "chat_xyz789",
+      "summary_id": "sum_abc123",
+      "title": "Chat about The Art of Learning",
+      "created_at": "2026-03-03T10:30:00Z",
+      "updated_at": "2026-03-03T11:45:00Z"
+    }
+  ]
+}
+```
+
+### Example: List chats with book titles
+
+```bash
+curl "https://your-domain.com/api/chats?include_book=true" \
+  -H "Authorization: Bearer <session-token>"
+```
+
+```json
+{
+  "chats": [
+    {
+      "id": "chat_xyz789",
+      "summary_id": "sum_abc123",
+      "title": "What are the key principles?",
+      "created_at": "2026-03-03T10:30:00Z",
+      "updated_at": "2026-03-03T11:45:00Z",
+      "book_title": "The Art of Learning"
+    }
+  ]
+}
+```
+
+### Example: Filter by summary
+
+```bash
+curl "https://your-domain.com/api/chats?summary_id=sum_abc123" \
+  -H "Authorization: Bearer <session-token>"
+```
+
+---
+
+## Get chat
+
+<Card title="GET /api/chats/{chat_id}" icon="message">
+  Get a specific chat with all messages
+</Card>
+
+Retrieve complete chat details including all messages in the conversation.
+
+### Authentication
+
+Required. Users can only access their own chats.
+
+### Path parameters
+
+<ParamField path="chat_id" type="string" required>
+  The chat identifier
+</ParamField>
+
+### Response
+
+<ResponseField name="id" type="string">
+  Chat identifier
+</ResponseField>
+
+<ResponseField name="summary_id" type="string">
+  Associated summary ID
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  Chat title
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 creation timestamp
+</ResponseField>
+
+<ResponseField name="updated_at" type="string">
+  ISO 8601 last update timestamp
+</ResponseField>
+
+<ResponseField name="book_title" type="string">
+  Title of the book being discussed
+</ResponseField>
+
+<ResponseField name="messages" type="array">
+  Array of message objects
+  
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Message identifier
+    </ResponseField>
+    
+    <ResponseField name="role" type="string">
+      Either "user" or "assistant"
+    </ResponseField>
+    
+    <ResponseField name="content" type="string">
+      Message content
+    </ResponseField>
+    
+    <ResponseField name="created_at" type="string">
+      ISO 8601 timestamp
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl https://your-domain.com/api/chats/chat_xyz789 \
+  -H "Authorization: Bearer <session-token>"
+```
+
+```json
+{
+  "id": "chat_xyz789",
+  "summary_id": "sum_abc123",
+  "title": "What are the key principles?",
+  "created_at": "2026-03-03T10:30:00Z",
+  "updated_at": "2026-03-03T11:45:00Z",
+  "book_title": "The Art of Learning",
+  "messages": [
+    {
+      "id": "msg_001",
+      "role": "user",
+      "content": "What are the key principles in this book?",
+      "created_at": "2026-03-03T10:30:00Z"
+    },
+    {
+      "id": "msg_002",
+      "role": "assistant",
+      "content": "The book emphasizes three key principles: 1) Incremental growth through deliberate practice...",
+      "created_at": "2026-03-03T10:30:15Z"
+    }
+  ]
+}
+```
+
+### Errors
+
+<ResponseField name="404 Not Found">
+  ```json
+  {
+    "detail": "Chat not found"
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="403 Forbidden">
+  ```json
+  {
+    "detail": "Not authorized to access this chat"
+  }
+  ```
+</ResponseField>
+
+---
+
+## Send message
+
+<Card title="POST /api/chats/{chat_id}/messages" icon="paper-plane">
+  Send a message and receive streaming response
+</Card>
+
+Send a message to the chat and receive a streaming response using Server-Sent Events (SSE). The assistant uses RAG to retrieve relevant book content before responding.
+
+### Authentication
+
+Required. Users can only send messages to their own chats.
+
+### Path parameters
+
+<ParamField path="chat_id" type="string" required>
+  The chat identifier
+</ParamField>
+
+### Request
+
+<ParamField body="content" type="string" required>
+  The user's message content
+</ParamField>
+
+### Response
+
+Returns Server-Sent Events (SSE) stream with `Content-Type: text/event-stream`.
+
+Each event is formatted as:
+```
+data: {JSON}
+
+```
+
+**Chunk event**:
+```json
+{"content": "text chunk"}
+```
+
+**Completion event**:
+```json
+{"done": true}
+```
+
+**Error event**:
+```json
+{"error": "error message"}
+```
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/chats/chat_xyz789/messages \
+  -H "Authorization: Bearer <session-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "What does the author say about practice?"
+  }'
+```
+
+**Response stream**:
+```
+data: {"content": "The"}
+
+data: {"content": " author"}
+
+data: {"content": " emphasizes"}
+
+data: {"content": " that"}
+
+data: {"content": " deliberate"}
+
+data: {"content": " practice"}
+
+data: {"content": "..."}
+
+data: {"done": true}
+
+```
+
+### Background tasks
+
+For the first message in a chat, the title is automatically generated in the background based on the message content and book title.
+
+### Errors
+
+<ResponseField name="404 Not Found">
+  ```json
+  {
+    "detail": "Chat not found"
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="403 Forbidden">
+  ```json
+  {
+    "detail": "Not authorized to access this chat"
+  }
+  ```
+</ResponseField>
+
+---
+
+## Delete chat
+
+<Card title="DELETE /api/chats/{chat_id}" icon="trash">
+  Delete a chat and all its messages
+</Card>
+
+Permanently delete a chat conversation and all associated messages.
+
+### Authentication
+
+Required. Users can only delete their own chats.
+
+### Path parameters
+
+<ParamField path="chat_id" type="string" required>
+  The chat identifier
+</ParamField>
+
+### Response
+
+Returns `204 No Content` on success.
+
+### Example
+
+```bash
+curl -X DELETE https://your-domain.com/api/chats/chat_xyz789 \
+  -H "Authorization: Bearer <session-token>"
+```
+
+### Errors
+
+<ResponseField name="404 Not Found">
+  ```json
+  {
+    "detail": "Chat not found"
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="403 Forbidden">
+  ```json
+  {
+    "detail": "Not authorized to delete this chat"
+  }
+  ```
+</ResponseField>

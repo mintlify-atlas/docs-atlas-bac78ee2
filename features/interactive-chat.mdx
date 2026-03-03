@@ -1,0 +1,305 @@
+---
+title: Interactive chat
+description: RAG-powered conversations with your books using semantic search and AI
+---
+
+## Overview
+
+After summarizing a book, you can have interactive conversations with it using the chat feature. The system uses Retrieval-Augmented Generation (RAG) to find relevant sections of the book and answer your questions accurately.
+
+<Info>
+RAG combines semantic search (finding relevant content) with language models (generating natural responses) to provide accurate, context-aware answers based on the actual book content.
+</Info>
+
+## How RAG works
+
+The chat system follows a three-step process:
+
+### 1. Indexing (one-time setup)
+
+When you create your first chat for a book, the system indexes the content:
+
+```python
+# Split book into chunks
+splitter = SentenceSplitter(
+    chunk_size=1024,      # Characters per chunk
+    chunk_overlap=200,    # Overlap between chunks
+)
+nodes = splitter.get_nodes_from_documents([document])
+
+# Generate embeddings and store in vector database
+VectorStoreIndex(nodes, storage_context=storage_context, embed_model=embed_model)
+```
+
+**Chunking**: The book is split into ~1000-character chunks with 200-character overlap to preserve context across boundaries.
+
+**Embeddings**: Each chunk is converted to a vector using OpenAI's embedding model (configurable via `EMBEDDING_MODEL` setting).
+
+**Storage**: Vectors are stored in ChromaDB, a persistent vector database.
+
+See `rag/indexer.py:38` for the complete indexing implementation.
+
+<Note>
+Indexing happens automatically when you create your first chat. A typical book creates 100-500 chunks depending on length.
+</Note>
+
+### 2. Retrieval (per question)
+
+When you ask a question, the system retrieves relevant chunks:
+
+```python
+index = _load_index(summary_id)
+retriever = index.as_retriever(similarity_top_k=5)
+
+nodes = retriever.retrieve(query)
+chunks = [node.get_content() for node in nodes]
+context = "\n\n---\n\n".join(chunks)
+```
+
+**Similarity search**: Your question is converted to a vector and compared against all book chunks.
+
+**Top-K retrieval**: The 5 most similar chunks are selected (configurable via `TOP_K` setting).
+
+**Context assembly**: Retrieved chunks are joined with separators to form the context.
+
+See `rag/chat_engine.py:33` for retrieval details.
+
+### 3. Generation (AI response)
+
+The retrieved context is sent to the language model with your question:
+
+```python
+messages = [
+    {"role": "system", "content": system_prompt_with_context},
+    # ... previous messages ...
+    {"role": "user", "content": query}
+]
+
+# Stream response from OpenRouter API
+async for chunk in _stream_llm_response(messages):
+    yield chunk
+```
+
+The system prompt instructs the AI to:
+- Respond in the same language as the book content
+- Use only the provided context to answer questions
+- Admit when information isn't in the context
+- Quote the book when relevant
+- Format responses using clean Markdown
+
+See `rag/chat_engine.py:50` for the system prompt.
+
+## Creating a chat
+
+To start chatting with a book, create a chat session:
+
+```bash
+POST /chats
+{
+  "summary_id": "abc123"
+}
+```
+
+**Response**:
+```json
+{
+  "id": "chat456",
+  "summary_id": "abc123",
+  "title": "Chat about Book Title",
+  "created_at": "2024-01-15T10:30:00Z",
+  "updated_at": "2024-01-15T10:30:00Z"
+}
+```
+
+<Accordion title="Automatic indexing">
+If the book hasn't been indexed yet, the system does it automatically when you create the chat. This may take 10-30 seconds for a typical book. The response includes a `chunk_count` field showing how many chunks were created.
+</Accordion>
+
+<Accordion title="Multiple chats per book">
+You can create multiple chat sessions for the same book. Each chat maintains its own conversation history, allowing you to explore different topics or questions separately.
+</Accordion>
+
+See `routers/chat.py:39` for the chat creation endpoint.
+
+## Sending messages
+
+Send a message to get a streaming response:
+
+```bash
+POST /chats/{chat_id}/messages
+{
+  "content": "What are the main benefits of deep work?"
+}
+```
+
+**Response** (Server-Sent Events):
+```
+data: {"content": "The "}
+data: {"content": "main "}
+data: {"content": "benefits "}
+...
+data: {"done": true}
+```
+
+The response streams in real-time, providing immediate feedback as the AI generates the answer.
+
+<Info>
+Streaming uses Server-Sent Events (SSE) with `Content-Type: text/event-stream`. Each chunk is prefixed with `data:` and contains JSON with a `content` field.
+</Info>
+
+## Chat history
+
+The system maintains conversation history automatically:
+
+**Storage**: All messages (user and assistant) are stored in the database
+
+**Context window**: The last 10 messages are included when generating responses
+
+**Ordering**: Messages are retrieved in chronological order
+
+This allows the AI to reference previous questions and maintain conversation context:
+
+```
+User: What is deep work?
+Assistant: Deep work is...
+
+User: How do I practice it?  # AI remembers "it" refers to deep work
+Assistant: To practice deep work, you can...
+```
+
+See `routers/chat.py:252` for how chat history is assembled.
+
+## Automatic title generation
+
+When you send the first message in a chat, the system generates a descriptive title in the background:
+
+```python
+async def generate_chat_title(user_message: str, book_title: str) -> str:
+    """Generate a short, meaningful chat title from the first message."""
+    # Uses LLM to create 1-3 word title based on the question
+    # Example: "Benefits of Deep Work" for "What are the main benefits?"
+```
+
+The title:
+- Appears in your chat list
+- Is generated in the same language as your question
+- Is automatically limited to 50 characters
+- Updates asynchronously (doesn't delay the response)
+
+See `rag/chat_engine.py:184` for the title generation logic.
+
+## Multilingual support
+
+The chat system detects the book's language and responds accordingly:
+
+<Tabs>
+  <Tab title="Language detection">
+    The system prompt includes:
+    
+    ```
+    IMPORTANT: Detect the language of the provided context 
+    and respond in that same language.
+    - If the book content is in Amharic, respond in Amharic
+    - If the book content is in English, respond in English
+    ```
+    
+    This ensures answers match the language of the book content.
+  </Tab>
+  <Tab title="Question language">
+    You can ask questions in any language. The AI will respond in the book's language, not your question language. This is intentional to maintain consistency with the source material.
+  </Tab>
+  <Tab title="Mixed content">
+    For books with mixed languages, the AI uses the dominant language of the retrieved chunks to determine the response language.
+  </Tab>
+</Tabs>
+
+## Response formatting
+
+Responses are formatted using clean Markdown:
+
+- **Paragraphs**: Separated with single blank lines
+- **Lists**: Use `-` for bullets, `1.` for numbered lists
+- **Emphasis**: `**bold**` and `*italic*` for highlighting
+- **Code**: `` `inline code` `` and ` ```code blocks``` ` for technical content
+- **Quotes**: Direct quotes from the book when relevant
+
+The formatting makes responses easy to read and parse in the frontend.
+
+## Managing chats
+
+### List all chats
+
+```bash
+GET /chats?include_book=true
+```
+
+Returns all chats for the current user, optionally including book titles.
+
+### Get chat details
+
+```bash
+GET /chats/{chat_id}
+```
+
+Returns the complete chat with all messages in chronological order.
+
+### Delete a chat
+
+```bash
+DELETE /chats/{chat_id}
+```
+
+Deletes the chat and all associated messages. This action cannot be undone.
+
+<Note>
+Deleting a chat does NOT delete the book index. The index remains for other chats or future use.
+</Note>
+
+See `routers/chat.py` for all chat management endpoints.
+
+## Technical details
+
+### Vector database
+
+**Technology**: ChromaDB with persistent storage
+
+**Location**: Configurable via `CHROMA_PERSIST_DIR` setting
+
+**Collection naming**: Each book gets a unique collection (e.g., `book_abc123`)
+
+**Metadata**: Stores book title, author, and summary ID with each chunk
+
+See `rag/vector_store.py` for vector store management.
+
+### Embedding model
+
+**Default**: OpenAI `text-embedding-3-small`
+
+**API**: Requires `OPENAI_API_KEY` environment variable
+
+**Dimensions**: 1536-dimensional vectors (standard for OpenAI embeddings)
+
+**Cost**: ~$0.02 per 1 million tokens
+
+See `rag/indexer.py:22` for embedding model configuration.
+
+### Language model
+
+**API**: OpenRouter (supports multiple models)
+
+**Model**: Configurable via `LLM_MODEL` setting
+
+**Streaming**: Real-time token streaming via SSE
+
+**Context window**: Up to 5 chunks * ~1000 chars + conversation history
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Library management" href="/features/library-management">
+    Organize and manage your summarized books
+  </Card>
+  <Card title="Book summarization" href="/features/book-summarization">
+    Learn how AI generates book summaries
+  </Card>
+</CardGroup>

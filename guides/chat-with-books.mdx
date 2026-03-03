@@ -1,0 +1,209 @@
+---
+title: Chat with books
+description: Ask questions and explore books interactively using AI-powered chat
+---
+
+After generating a summary, you can start an interactive chat session to ask questions and dive deeper into the book's content.
+
+## Starting a chat
+
+<Steps>
+  <Step title="Navigate to a summary">
+    From the summary page of any book, look for the **Start Chat** button in the header area.
+  </Step>
+
+  <Step title="Sign in if needed">
+    Chat requires authentication. If you're not logged in:
+    
+    1. You'll be redirected to the login page
+    2. After signing in, you'll return to your summary
+    3. Click **Start Chat** again
+  </Step>
+
+  <Step title="Wait for indexing">
+    The first time you chat with a book:
+    
+    - The book content is indexed for semantic search
+    - This happens automatically in the background
+    - Subsequent chats with the same book are instant
+  </Step>
+
+  <Step title="Start asking questions">
+    Once the chat interface opens:
+    
+    - Type your question in the input field
+    - Press Enter or click Send
+    - Watch the AI response stream in real-time
+  </Step>
+</Steps>
+
+## Chat features
+
+### Contextual responses
+
+The chat system uses RAG (Retrieval Augmented Generation) to provide accurate answers:
+
+- Searches the book content for relevant passages
+- Uses those passages as context for the AI response
+- Maintains conversation history for follow-up questions
+- Responds based on the actual book content, not generic knowledge
+
+### Conversation history
+
+Each chat session maintains a complete history:
+
+- All messages are saved automatically
+- You can scroll back through previous questions
+- The AI remembers earlier parts of the conversation
+- Delete a chat to remove all its messages
+
+### Starter questions
+
+When you open a new chat, you'll see suggested starter questions to help you begin exploring the book.
+
+<Tip>
+Ask specific questions about concepts, examples, or applications mentioned in the book for the most detailed responses.
+</Tip>
+
+## Managing chats
+
+You can have multiple chat sessions for the same book:
+
+- Each chat has its own conversation history
+- View all your chats from the Chats page
+- Delete chats you no longer need
+- Chats are automatically titled based on your first message
+
+## API endpoints
+
+### Create a chat
+
+Start a new chat session for a book:
+
+```bash
+POST /api/chats
+Authorization: Bearer <session-token>
+Content-Type: application/json
+
+{
+  "summary_id": "abc123"
+}
+```
+
+**Response:**
+
+```json
+{
+  "id": "chat_xyz",
+  "summary_id": "abc123",
+  "title": "Chat about Book Title",
+  "created_at": "2026-03-03T10:00:00Z",
+  "updated_at": "2026-03-03T10:00:00Z"
+}
+```
+
+### Send a message
+
+Send a message and receive a streaming response:
+
+```bash
+POST /api/chats/{chat_id}/messages
+Authorization: Bearer <session-token>
+Content-Type: application/json
+
+{
+  "content": "What is the main argument of chapter 3?"
+}
+```
+
+**Response:** Server-Sent Events (SSE) stream
+
+```
+data: {"content": "The"}
+
+data: {"content": " main"}
+
+data: {"content": " argument..."}
+
+data: {"done": true}
+```
+
+### Get chat details
+
+Retrieve a chat with all its messages:
+
+```bash
+GET /api/chats/{chat_id}
+Authorization: Bearer <session-token>
+```
+
+**Response:**
+
+```json
+{
+  "id": "chat_xyz",
+  "summary_id": "abc123",
+  "title": "Questions about the methodology",
+  "book_title": "Book Title",
+  "created_at": "2026-03-03T10:00:00Z",
+  "updated_at": "2026-03-03T10:05:00Z",
+  "messages": [
+    {
+      "id": "msg_1",
+      "role": "user",
+      "content": "What methodology does the author use?",
+      "created_at": "2026-03-03T10:00:00Z"
+    },
+    {
+      "id": "msg_2",
+      "role": "assistant",
+      "content": "The author uses a mixed-methods approach...",
+      "created_at": "2026-03-03T10:00:05Z"
+    }
+  ]
+}
+```
+
+### List user's chats
+
+```bash
+GET /api/chats
+Authorization: Bearer <session-token>
+
+# Optional query parameters:
+# ?summary_id=abc123 - Filter by book
+# ?include_book=true - Include book titles in response
+```
+
+### Delete a chat
+
+```bash
+DELETE /api/chats/{chat_id}
+Authorization: Bearer <session-token>
+```
+
+Returns `204 No Content` on success.
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Ask specific questions" icon="circle-question">
+    Get better answers by asking about specific concepts, chapters, or examples rather than broad questions.
+  </Card>
+  
+  <Card title="Use follow-up questions" icon="comments">
+    The AI remembers conversation context, so you can ask follow-up questions that reference earlier messages.
+  </Card>
+  
+  <Card title="Create focused chats" icon="bullseye">
+    Start separate chat sessions for different topics or aspects of the book.
+  </Card>
+  
+  <Card title="Export important insights" icon="download">
+    Copy useful responses from the chat to your notes or documentation.
+  </Card>
+</CardGroup>
+
+<Warning>
+Chats are tied to your user account. If you log out and back in, your chats remain accessible.
+</Warning>

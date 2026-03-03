@@ -1,0 +1,250 @@
+---
+title: Tech stack
+description: Technology stack and dependencies used in Reading Assistant
+---
+
+Reading Assistant is built with modern Python and JavaScript technologies, leveraging AI services for book summarization and chat.
+
+## Backend stack
+
+### Core framework
+
+**FastAPI** - High-performance Python web framework
+- Async/await support for concurrent operations
+- Automatic OpenAPI documentation
+- Built-in request validation with Pydantic
+- CORS middleware for frontend integration
+
+Entry point: `api.py:22`
+
+### Python version
+
+**Python 3.12+** - Latest stable Python with improved performance
+
+### Database
+
+**SQLAlchemy** - SQL toolkit and ORM
+- Declarative models with type hints
+- Repository pattern for data access
+- Support for SQLite and PostgreSQL
+
+**SQLite** - Default development database
+- Single file storage (`data/app.db`)
+- Zero configuration required
+- Configurable via `DATABASE_URL` environment variable
+
+**PostgreSQL** - Recommended for production
+- Better concurrency and performance
+- Required for Better Auth (frontend)
+- Connection string: `postgresql://user:pass@host/db`
+
+### AI and embeddings
+
+**OpenRouter API** - LLM gateway service
+- Model: Gemini 3 Flash (`google/gemini-3-flash-preview`)
+- Used for book summarization and chat responses
+- Configurable via `LLM_MODEL` environment variable
+
+**OpenAI API** - Embedding generation
+- Model: `text-embedding-3-small`
+- Generates vector embeddings for RAG
+- Used by LlamaIndex for semantic search
+
+**LlamaIndex** - RAG framework
+- Document chunking and indexing
+- Vector storage integration
+- Query engine for context-aware chat
+
+### Vector database
+
+**ChromaDB** - Embedded vector database
+- Local persistence in `data/chroma/`
+- Stores document embeddings
+- Fast similarity search
+- One collection per book
+
+### Text extraction
+
+**PyMuPDF** (`pymupdf`) - PDF text extraction
+- Fast and accurate for text-based PDFs
+- Fallback to OCR for scanned PDFs
+
+**ebooklib** - EPUB parsing
+- Extracts content from EPUB files
+- Handles HTML content within EPUB
+
+**Tesseract OCR** (`pytesseract`) - OCR for scanned PDFs
+- Multi-language support (English + Amharic by default)
+- Image preprocessing for better accuracy
+- Parallel page processing
+
+**pdf2image** - Convert PDF pages to images for OCR
+
+**BeautifulSoup4** - HTML parsing
+- Extracts text from EPUB HTML content
+- Cleans web page content for URL extraction
+
+### HTTP client
+
+**httpx** - Modern async HTTP client
+- Used for OpenRouter API calls
+- Timeout configuration (120s for LLM calls)
+
+**curl-cffi** - Browser impersonation for web scraping
+- Extracts content from URLs
+- Bypasses simple bot detection
+
+### PDF generation
+
+**ReportLab** (assumed, not visible in code) - PDF export
+- Generates PDF versions of summaries
+- Preserves formatting and structure
+
+### Utilities
+
+**python-dotenv** - Environment variable management
+- Loads `.env` file configuration
+- Development and production settings
+
+## Frontend stack
+
+### Core framework
+
+**Next.js 16** - React framework with App Router
+- Server-side rendering (SSR)
+- API routes for backend proxy
+- File-based routing
+- Built-in optimization
+
+### UI libraries
+
+**React 19** - Latest React with improved performance
+- Server components support
+- Concurrent rendering
+
+**TypeScript 5** - Type-safe JavaScript
+- Strict type checking
+- Better IDE support
+
+**Tailwind CSS 4** - Utility-first CSS framework
+- Rapid UI development
+- Responsive design utilities
+- Dark mode support via `next-themes`
+
+**Tailwind Typography** - Beautiful text styling for prose content
+
+### UI components
+
+**Lucide React** - Icon library
+- Modern, consistent icon set
+- Tree-shakeable for small bundle size
+
+**react-markdown** - Markdown rendering
+- Displays formatted chat messages
+- Supports code blocks and lists
+
+### Authentication
+
+**Better Auth 1.4+** - Modern authentication library
+- Email/password authentication
+- Session management with cookies
+- Requires PostgreSQL database
+- Drizzle ORM for auth schema
+
+**Drizzle ORM** - TypeScript ORM for auth database
+- Type-safe database queries
+- Schema migrations via `drizzle-kit`
+
+**pg** - PostgreSQL client for Node.js
+
+### Theme management
+
+**next-themes** - Theme switching (light/dark mode)
+- Persistent theme preference
+- No flash of wrong theme
+
+### Development tools
+
+**ESLint** - JavaScript/TypeScript linter
+- Next.js configuration
+- Code quality enforcement
+
+**PostCSS** - CSS processing
+- Tailwind CSS compilation
+
+## Package management
+
+### Backend
+
+**uv** - Fast Python package installer
+- Drop-in replacement for pip
+- Faster dependency resolution
+- Used in deployment scripts
+
+### Frontend
+
+**npm** - Node.js package manager
+- Standard JavaScript ecosystem tool
+- Lock file for reproducible builds
+
+## Deployment stack
+
+### Process management
+
+**systemd** - Linux service management
+- Runs backend API as service
+- Runs frontend UI as service
+- Automatic restart on failure
+
+Services:
+- `reading-assistant-api`
+- `reading-assistant-ui`
+
+### Backend server
+
+**uvicorn** - ASGI server for FastAPI
+- Production-ready Python server
+- Supports async operations
+- Run command: `uvicorn api:app --host 0.0.0.0 --port 8000`
+
+### Frontend server
+
+**Next.js production build**
+- Optimized static and server-rendered pages
+- Run command: `npm run build && npm start`
+
+## External services
+
+### OpenRouter
+- API for accessing various LLMs
+- Currently uses Gemini 3 Flash
+- Endpoint: `https://openrouter.ai/api/v1/chat/completions`
+
+### OpenAI
+- Text embeddings for RAG
+- Model: `text-embedding-3-small`
+- Faster and cheaper than larger models
+
+### Neon (recommended)
+- Managed PostgreSQL for Better Auth
+- Free tier available
+- Automatic backups
+
+## Version summary
+
+| Component | Version/Model |
+|-----------|---------------|
+| Python | 3.12+ |
+| Node.js | 24+ |
+| FastAPI | Latest |
+| Next.js | 16.1.1 |
+| React | 19.2.3 |
+| TypeScript | 5.x |
+| Tailwind CSS | 4.1.18 |
+| Better Auth | 1.4.17+ |
+| LLM Model | Gemini 3 Flash |
+| Embedding Model | text-embedding-3-small |
+
+## Configuration
+
+All stack components are configurable via environment variables. See [Environment variables](/configuration/environment-variables) for complete configuration options.

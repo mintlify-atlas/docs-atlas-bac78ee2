@@ -1,80 +1,212 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick start
+description: Get your first book summary in 5 minutes
 ---
 
-## Get started in three steps
+# Quick start
 
-Get your documentation site running locally and make your first customization.
+This guide will help you get Reading Assistant running locally and generate your first book summary.
 
-### Step 1: Set up your local environment
+## Prerequisites
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+Before you begin, ensure you have:
+- **Python 3.12+** installed
+- **Node.js 24+** installed
+- **uv** Python package manager ([install guide](https://docs.astral.sh/uv/getting-started/installation/))
+- **OpenRouter API key** ([get one here](https://openrouter.ai/))
+- **OpenAI API key** ([get one here](https://platform.openai.com/))
+
+## Installation
+
+<Steps>
+  <Step title="Clone and setup backend">
+    Create a virtual environment and install Python dependencies:
+
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # On Windows: venv\Scripts\activate
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    uv pip install -r requirements.txt
+    ```
 
-### Step 2: Deploy your changes
+    The backend uses these key dependencies:
+    - `fastapi==0.128.0` - Web framework
+    - `llama-index==0.14.12` - Document processing
+    - `chromadb==1.4.1` - Vector storage
+    - `pymupdf==1.26.7` - PDF extraction
+    - `ebooklib==0.20` - EPUB extraction
+  </Step>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+  <Step title="Configure environment variables">
+    Create a `.env` file in the project root:
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    ```bash
+    cp .env.example .env
+    ```
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    Edit `.env` with your API keys:
 
-### Step 3: Go live
+    ```bash
+    OPENROUTER_API_KEY=your_openrouter_key_here
+    OPENAI_API_KEY=your_openai_key_here
+    LLM_MODEL=google/gemini-3-flash-preview
+    DATABASE_URL=sqlite:///data/app.db
+    BETTER_AUTH_URL=http://localhost:3000
+    LOG_LEVEL=INFO
+    ```
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    <Note>
+      The SQLite database will be automatically created in the `data/` directory when you first start the server.
+    </Note>
+  </Step>
 
-## Next steps
+  <Step title="Setup frontend">
+    Install Node.js dependencies and configure the frontend:
 
-Now that you have your docs running, explore these key features:
+    ```bash
+    cd client
+    npm install
+    ```
+
+    Key frontend dependencies include:
+    - `next@16.1.1` - React framework
+    - `react@19.2.3` - UI library
+    - `better-auth@^1.4.17` - Authentication
+    - `drizzle-orm@^0.45.1` - Database ORM
+  </Step>
+
+  <Step title="Configure auth database">
+    Better Auth requires a PostgreSQL database. Create a Postgres instance (e.g., via [Neon](https://neon.tech/)) and set up the auth database:
+
+    Create `client/.env.local`:
+
+    ```bash
+    DATABASE_URL=postgresql://user:password@host/dbname
+    NEXT_PUBLIC_API_URL=http://localhost:8000
+    ```
+
+    Run database migrations:
+
+    ```bash
+    npx drizzle-kit push
+    ```
+  </Step>
+
+  <Step title="Start the servers">
+    Open two terminal windows.
+
+    **Terminal 1 - Backend:**
+    ```bash
+    uvicorn api:app --reload --host 0.0.0.0 --port 8000
+    ```
+
+    **Terminal 2 - Frontend:**
+    ```bash
+    cd client
+    npm run dev
+    ```
+
+    <Note>
+      The backend API will be available at `http://localhost:8000` and the frontend at `http://localhost:3000`.
+    </Note>
+  </Step>
+</Steps>
+
+## Generate your first summary
+
+Now that everything is running, let's create your first book summary!
+
+<Steps>
+  <Step title="Open the application">
+    Navigate to [http://localhost:3000](http://localhost:3000) in your browser.
+  </Step>
+
+  <Step title="Upload a book">
+    You have three options:
+    - **Upload a PDF or EPUB file** (max file size configured in settings)
+    - **Paste text content** directly (minimum 100 characters)
+    - **Provide a URL** to extract content from
+
+    <Warning>
+      Files are limited by the `MAX_FILE_SIZE_MB` setting. Text content must be at least `MIN_TEXT_LENGTH` characters.
+    </Warning>
+  </Step>
+
+  <Step title="Get your summary">
+    Click "Summarize" and wait for the AI to process your book. You'll receive:
+    - **Core thesis** - The main argument or idea
+    - **Key insights** - Important concepts and takeaways
+    - **Actionable items** - Practical steps you can apply
+    - **Target audience** - Who should read this book
+    - **Chapter summaries** - Detailed breakdown of each chapter
+  </Step>
+
+  <Step title="Explore additional features">
+    Once you have a summary, you can:
+    - **Chat with the book** - Ask questions about the content using the chat feature
+    - **Export to PDF** - Download a formatted PDF of the summary
+    - **Save to library** - Add the summary to your personal collection
+
+    <CodeGroup>
+    ```bash API example
+    # Get a summary by ID
+    curl http://localhost:8000/api/summary/{summary_id}
+
+    # Download as PDF
+    curl http://localhost:8000/api/summary/{summary_id}/pdf -o summary.pdf
+
+    # Chat with the book
+    curl -X POST http://localhost:8000/api/chat \
+      -H "Content-Type: application/json" \
+      -d '{"summary_id": "your_id", "message": "What are the main themes?"}'
+    ```
+
+    ```python Python example
+    import httpx
+
+    # Summarize a book
+    async with httpx.AsyncClient() as client:
+        with open("book.pdf", "rb") as f:
+            response = await client.post(
+                "http://localhost:8000/api/summarize",
+                files={"file": f}
+            )
+            summary = response.json()
+            print(f"Summary ID: {summary['id']}")
+    ```
+    </CodeGroup>
+  </Step>
+</Steps>
+
+## What's next?
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card
+    title="Installation guide"
+    icon="gear"
+    href="/installation"
+  >
+    Learn about advanced configuration options
+  </Card>
+  <Card
+    title="API reference"
+    icon="book"
+    href="/api/overview"
+  >
+    Explore all available API endpoints
+  </Card>
+  <Card
+    title="Architecture"
+    icon="sitemap"
+    href="/development/architecture"
+  >
+    Understand how Reading Assistant works under the hood
+  </Card>
+  <Card
+    title="Deployment"
+    icon="cloud"
+    href="/development/deployment"
+  >
+    Deploy Reading Assistant to production
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

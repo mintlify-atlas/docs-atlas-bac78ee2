@@ -1,0 +1,348 @@
+---
+title: Project structure
+description: Codebase organization and file structure of Reading Assistant
+---
+
+Reading Assistant is organized as a monorepo with separate backend and frontend directories.
+
+## Repository structure
+
+```
+reading-assistant/
+├── api.py                 # FastAPI application entry point
+├── core/                  # Core business logic
+├── db/                    # Database layer
+├── routers/               # API route handlers
+├── rag/                   # RAG system (vector store, indexing, chat)
+├── schemas/               # Pydantic schemas
+├── tests/                 # Backend tests
+├── client/                # Next.js frontend application
+├── data/                  # Generated data (SQLite DB, ChromaDB vectors)
+├── logs/                  # Application logs
+├── requirements.txt       # Python dependencies
+├── deploy.sh              # Deployment script
+├── .env.example           # Backend environment template
+└── README.md              # Project documentation
+```
+
+## Backend structure
+
+### Entry point
+
+**`api.py`** - FastAPI application
+- Initializes database on startup
+- Configures CORS middleware
+- Registers routers for `/api/summarize` and `/api/chats`
+- Health check endpoint at `/health`
+
+### Core services (`core/`)
+
+Business logic separated from API layer:
+
+```
+core/
+├── config.py           # Settings and logging configuration
+├── extractor.py        # Text extraction from PDF/EPUB/URLs
+├── summarizer.py       # LLM-based summarization
+├── pdf_export.py       # PDF generation for summaries
+├── auth.py             # Better Auth integration helpers
+└── dependencies.py     # FastAPI dependency injection
+```
+
+**`config.py:12`** - Settings class
+- Loads environment variables
+- Defines configuration constants
+- Provides cached settings instance
+- Configures structured logging
+
+**`extractor.py`** - Content extraction
+- `extract_from_pdf()` - PyMuPDF text extraction
+- `extract_from_scanned_pdf()` - OCR with Tesseract
+- `extract_from_epub()` - EPUB content parsing
+- `extract_url_content()` - Web page and file extraction
+- `extract_book_content()` - Main entry point with fallback
+
+**`summarizer.py:85`** - AI summarization
+- `generate_summary()` - Sends text to OpenRouter API
+- `parse_summary_json()` - Validates LLM response
+- `SYSTEM_PROMPT` - Detailed instructions for structured output
+- Returns metadata, summary, and chapter breakdowns
+
+**`pdf_export.py`** - Export functionality
+- Generates formatted PDF from summary JSON
+- Preserves structure and formatting
+
+**`auth.py`** - Authentication
+- `get_current_user_id()` - Validates session and extracts user ID
+- `get_optional_user_id()` - Non-required auth for public endpoints
+
+### Database layer (`db/`)
+
+SQLAlchemy models and repositories:
+
+```
+db/
+├── __init__.py         # Database initialization and session management
+├── models/
+│   ├── __init__.py     # Exports Base and all models
+│   ├── summary.py      # Summary and UserSummary models
+│   └── chat.py         # Chat and Message models
+└── repositories/
+    ├── __init__.py     # Repository exports
+    ├── summary.py      # SummaryRepository with caching logic
+    └── chat.py         # ChatRepository for chat operations
+```
+
+**Models** (`db/models/`)
+
+- `Summary` - Stores book content and generated summaries
+- `UserSummary` - Links users to their saved summaries  
+- `Chat` - Chat sessions for books
+- `Message` - Individual messages in chat history
+
+**Repositories** (`db/repositories/`)
+
+Data access layer implementing repository pattern:
+
+- `SummaryRepository` - Create, retrieve, cache, user library
+- `ChatRepository` - Create chats, add messages, update titles
+
+### API routes (`routers/`)
+
+FastAPI routers organized by domain:
+
+```
+routers/
+├── __init__.py         # Router exports
+├── summarize.py        # Book upload and summary endpoints
+└── chat.py             # Chat creation and messaging
+```
+
+**`routers/summarize.py`**
+
+- `POST /api/summarize` - Upload and summarize book
+- `GET /api/summary/{id}` - Retrieve summary by ID
+- `GET /api/summary/{id}/pdf` - Download summary as PDF
+- `POST /api/summary/{id}/save` - Save to user library
+- `DELETE /api/summary/{id}/save` - Remove from library
+- `GET /api/library` - List user's saved summaries
+
+**`routers/chat.py`**
+
+- `POST /api/chats` - Create new chat for a book
+- `GET /api/chats` - List user's chats
+- `GET /api/chats/{id}` - Get chat with message history
+- `POST /api/chats/{id}/messages` - Send message (streaming response)
+- `DELETE /api/chats/{id}` - Delete chat
+
+### RAG system (`rag/`)
+
+Retrieval-Augmented Generation implementation:
+
+```
+rag/
+├── __init__.py         # Exports public functions
+├── indexer.py          # Document chunking and indexing
+├── vector_store.py     # ChromaDB collection management
+└── chat_engine.py      # Query engine with context retrieval
+```
+
+**`indexer.py:38`** - Book indexing
+
+- `index_book()` - Chunks content, generates embeddings, stores vectors
+- `is_indexed()` - Checks if book already indexed
+- `delete_index()` - Removes book from vector store
+- Uses LlamaIndex for chunking (1024 chars, 200 overlap)
+
+**`vector_store.py`** - Vector database
+
+- Manages ChromaDB collections (one per book)
+- Creates, retrieves, and deletes collections
+- Persistent storage in `data/chroma/`
+
+**`chat_engine.py`** - Chat functionality
+
+- Retrieves relevant chunks for user query
+- Combines context with chat history
+- Streams LLM responses
+- Generates chat titles based on first message
+
+### Schemas (`schemas/`)
+
+Pydantic models for request/response validation:
+
+```
+schemas/
+└── chat.py             # Chat and message schemas
+```
+
+Defines API contracts for chat endpoints.
+
+### Tests (`tests/`)
+
+Unit and integration tests:
+
+```
+tests/
+└── test_rag.py         # RAG system tests
+```
+
+## Frontend structure
+
+Next.js 16 App Router application:
+
+```
+client/
+├── app/                        # Route pages and layouts
+│   ├── layout.tsx             # Root layout with providers
+│   ├── page.tsx               # Home page (upload)
+│   ├── globals.css            # Global styles
+│   ├── summary/[id]/
+│   │   └── page.tsx           # Summary detail page
+│   ├── chat/[chatId]/
+│   │   └── page.tsx           # Individual chat page
+│   ├── chats/
+│   │   └── page.tsx           # Chat list page
+│   ├── library/
+│   │   └── page.tsx           # Saved summaries page
+│   ├── login/
+│   │   └── page.tsx           # Login page
+│   ├── signup/
+│   │   └── page.tsx           # Signup page
+│   └── api/
+│       ├── auth/[...all]/     # Better Auth API route
+│       └── proxy/[...path]/   # Backend API proxy
+├── components/                 # React components
+│   ├── auth/
+│   │   ├── LoginForm.tsx
+│   │   └── SignupForm.tsx
+│   ├── chat/
+│   │   ├── ChatContainer.tsx
+│   │   ├── ChatHeader.tsx
+│   │   ├── ChatInput.tsx
+│   │   ├── ChatList.tsx
+│   │   ├── MessageBubble.tsx
+│   │   └── MessageList.tsx
+│   ├── summary/
+│   │   ├── ChapterAccordion.tsx
+│   │   ├── MetadataHeader.tsx
+│   │   ├── SummaryAction.tsx
+│   │   └── SummaryCard.tsx
+│   ├── AnimateDots.tsx        # Loading animation
+│   ├── LibraryList.tsx        # Library grid view
+│   ├── LoadingState.tsx       # Loading indicator
+│   ├── Navbar.tsx             # Navigation bar
+│   ├── SummaryResult.tsx      # Summary display
+│   ├── ThemeToggle.tsx        # Dark mode toggle
+│   └── UploadForm.tsx         # File/text upload form
+├── lib/                        # Client utilities
+│   ├── api.ts                 # API client functions
+│   ├── api-server.ts          # Server-side API calls
+│   ├── auth.ts                # Better Auth configuration
+│   ├── auth-client.ts         # Auth client instance
+│   ├── get-session.ts         # Server-side session helper
+│   ├── constants.ts           # App constants
+│   └── db/
+│       └── auth-schema.ts     # Drizzle schema for auth
+├── public/                     # Static assets
+├── package.json               # Dependencies and scripts
+├── tsconfig.json              # TypeScript configuration
+├── tailwind.config.ts         # Tailwind CSS configuration
+├── postcss.config.mjs         # PostCSS configuration
+├── next.config.ts             # Next.js configuration
+├── drizzle.config.ts          # Drizzle ORM configuration
+├── eslint.config.mjs          # ESLint configuration
+├── proxy.ts                   # API proxy utility
+└── .env.local.example         # Frontend environment template
+```
+
+### Key frontend files
+
+**`app/layout.tsx`** - Root layout
+- Theme provider for dark mode
+- Navigation bar
+- Authentication context
+
+**`app/page.tsx`** - Home page
+- Upload form (file, URL, or text)
+- Redirects to summary on completion
+
+**`components/UploadForm.tsx`** - Upload UI
+- Handles file selection
+- Shows upload progress
+- Validates file types and size
+
+**`components/SummaryResult.tsx`** - Summary display
+- Metadata header (title, author)
+- Core thesis and insights
+- Chapter accordion
+- Save and export actions
+
+**`lib/api.ts`** - API client
+- Fetch wrappers for backend endpoints
+- Error handling and type safety
+- Uses `NEXT_PUBLIC_API_URL` environment variable
+
+**`lib/auth.ts`** - Authentication setup
+- Better Auth configuration
+- Database connection
+- Session management
+
+## Data directories
+
+Generated at runtime:
+
+**`data/`** - Application data
+- `app.db` - SQLite database (if using SQLite)
+- `chroma/` - ChromaDB vector store
+
+**`logs/`** - Application logs
+- `app.log` - Rotating log files (5 MB max, 5 backups)
+
+## Configuration files
+
+**`.env`** - Backend environment variables
+- API keys (OpenRouter, OpenAI)
+- Database URL
+- Better Auth URL
+- Log level
+
+**`client/.env.local`** - Frontend environment variables
+- Backend API URL
+- Better Auth database URL
+
+**`requirements.txt`** - Python dependencies
+- FastAPI, SQLAlchemy, LlamaIndex
+- PDF/EPUB libraries
+- AI/ML libraries
+
+**`client/package.json`** - Node.js dependencies
+- Next.js, React, TypeScript
+- Tailwind CSS, Better Auth
+
+## Import conventions
+
+### Backend
+
+- Absolute imports from project root
+- Example: `from core.config import get_settings`
+- Models imported from `db.models`
+- Repositories imported from `db.repositories`
+
+### Frontend
+
+- Relative imports for components
+- Absolute imports from `lib/` directory
+- Type imports from component files
+
+## File naming conventions
+
+### Backend
+- Snake case: `vector_store.py`, `chat_engine.py`
+- Single responsibility per file
+- Clear, descriptive names
+
+### Frontend
+- PascalCase for components: `ChatInput.tsx`
+- camelCase for utilities: `api.ts`, `auth-client.ts`
+- Page files: `page.tsx` (Next.js convention)

@@ -1,0 +1,139 @@
+---
+title: Environment variables
+description: Configure Reading Assistant backend and frontend settings
+---
+
+Reading Assistant uses environment variables to configure both the backend API and frontend application.
+
+## Backend environment variables
+
+The backend configuration is stored in a `.env` file in the root directory. Copy `.env.example` to `.env` and configure the following variables:
+
+### API keys
+
+<ParamField path="OPENROUTER_API_KEY" type="string" required>
+  API key for OpenRouter, used to access LLM models for summarization.
+  
+  Get your API key from [OpenRouter](https://openrouter.ai).
+</ParamField>
+
+<ParamField path="OPENAI_API_KEY" type="string" required>
+  API key for OpenAI, used for embeddings in RAG (Retrieval-Augmented Generation).
+  
+  Get your API key from [OpenAI](https://platform.openai.com/api-keys).
+</ParamField>
+
+<Warning>
+  Both `OPENROUTER_API_KEY` and `OPENAI_API_KEY` are required for the application to function. Without these keys, summarization and chat features will not work.
+</Warning>
+
+### LLM configuration
+
+<ParamField path="LLM_MODEL" type="string" default="google/gemini-3-flash-preview">
+  The language model to use for generating summaries.
+  
+  You can use any model available on OpenRouter. See the [LLM settings](/configuration/llm-settings) page for details.
+</ParamField>
+
+### Database
+
+<ParamField path="DATABASE_URL" type="string" default="sqlite:///data/app.db">
+  Database connection string for storing summaries and user data.
+  
+  Supports SQLite and PostgreSQL. See the [database setup](/configuration/database-setup) page for migration instructions.
+  
+  **Examples:**
+  - SQLite: `sqlite:///data/app.db`
+  - PostgreSQL: `postgresql://user:password@localhost:5432/reading_assistant`
+</ParamField>
+
+### Authentication
+
+<ParamField path="BETTER_AUTH_URL" type="string" default="http://localhost:3000">
+  URL of the frontend application for authentication.
+  
+  This should match the URL where your Next.js frontend is running.
+</ParamField>
+
+<ParamField path="BETTER_AUTH_COOKIE_NAME" type="string" default="better-auth.session-token">
+  Name of the session cookie used by Better Auth.
+  
+  Only change this if you've customized the cookie name in your frontend auth configuration.
+</ParamField>
+
+### CORS
+
+<ParamField path="CORS_ORIGINS" type="string" default="http://localhost:3000">
+  Comma-separated list of allowed origins for CORS.
+  
+  **Example:**
+  ```
+  CORS_ORIGINS=http://localhost:3000,https://yourdomain.com
+  ```
+</ParamField>
+
+### RAG (embeddings)
+
+<ParamField path="CHROMA_PERSIST_DIR" type="string" default="./data/chroma">
+  Directory path for persisting ChromaDB vector embeddings.
+  
+  This stores the vector embeddings used for the chat feature.
+</ParamField>
+
+### Logging
+
+<ParamField path="LOG_LEVEL" type="string" default="INFO">
+  Logging level for the application.
+  
+  **Options:** `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
+</ParamField>
+
+## Frontend environment variables
+
+The frontend configuration is stored in `client/.env.local`. Copy `client/.env.local.example` to `client/.env.local` and configure the following:
+
+<ParamField path="NEXT_PUBLIC_API_URL" type="string" required>
+  URL of the backend API.
+  
+  **Example:**
+  ```
+  NEXT_PUBLIC_API_URL=http://localhost:8000
+  ```
+</ParamField>
+
+<ParamField path="DATABASE_URL" type="string" required>
+  PostgreSQL database URL for Better Auth.
+  
+  Better Auth requires a PostgreSQL database for storing user sessions and authentication data.
+  
+  **Example:**
+  ```
+  DATABASE_URL=postgresql://user:password@localhost:5432/auth_db
+  ```
+</ParamField>
+
+<Warning>
+  The frontend `DATABASE_URL` is separate from the backend database. Better Auth requires PostgreSQL and cannot use SQLite.
+</Warning>
+
+## Example configuration
+
+Backend `.env`:
+
+```bash
+OPENROUTER_API_KEY=sk-or-v1-...
+OPENAI_API_KEY=sk-...
+LLM_MODEL=google/gemini-3-flash-preview
+DATABASE_URL=sqlite:///data/app.db
+BETTER_AUTH_URL=http://localhost:3000
+CORS_ORIGINS=http://localhost:3000
+LOG_LEVEL=INFO
+CHROMA_PERSIST_DIR=./data/chroma
+```
+
+Frontend `client/.env.local`:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8000
+DATABASE_URL=postgresql://user:password@localhost:5432/auth_db
+```

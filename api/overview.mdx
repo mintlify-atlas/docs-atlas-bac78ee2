@@ -1,0 +1,111 @@
+---
+title: 'API overview'
+description: 'Learn about Reading Assistant API authentication and base configuration'
+---
+
+## Base URL
+
+All API endpoints are relative to your deployment URL:
+
+```
+https://your-domain.com/api
+```
+
+For local development:
+
+```
+http://localhost:8000/api
+```
+
+## Authentication
+
+The Reading Assistant API uses session-based authentication powered by Better Auth. Authentication is required for certain endpoints, particularly those dealing with user-specific data like chats and library management.
+
+### Session tokens
+
+Session tokens can be provided in two ways:
+
+1. **Authorization header** (recommended for cross-domain requests):
+
+```bash
+Authorization: Bearer <session-token>
+```
+
+2. **Cookie** (for same-domain requests):
+
+```bash
+Cookie: better-auth.session-token=<session-token>
+```
+
+### Authentication requirements
+
+| Endpoint | Authentication |
+|----------|---------------|
+| POST /summarize | Optional |
+| GET /summary/:id | Optional |
+| GET /summary/:id/pdf | No |
+| POST /summary/:id/save | Required |
+| DELETE /summary/:id/save | Required |
+| GET /library | Required |
+| POST /chats | Required |
+| GET /chats | Required |
+| GET /chats/:id | Required |
+| POST /chats/:id/messages | Required |
+| DELETE /chats/:id | Required |
+
+## Request format
+
+The API accepts:
+- JSON payloads for most endpoints
+- `multipart/form-data` for file uploads (POST /summarize)
+
+All requests should include appropriate `Content-Type` headers.
+
+## Response format
+
+All responses are returned as JSON with appropriate HTTP status codes:
+
+- **200 OK**: Successful request
+- **201 Created**: Resource successfully created
+- **204 No Content**: Successful deletion
+- **400 Bad Request**: Invalid request parameters
+- **401 Unauthorized**: Missing or invalid authentication
+- **403 Forbidden**: Insufficient permissions
+- **404 Not Found**: Resource not found
+- **500 Internal Server Error**: Server error
+
+### Error responses
+
+Error responses follow this structure:
+
+```json
+{
+  "detail": "Error message describing what went wrong"
+}
+```
+
+## Rate limits
+
+The API enforces the following limits:
+
+- **File uploads**: Maximum 50MB per file
+- **Text content**: 500-500,000 characters
+- **Request timeout**: 120 seconds for summarization
+
+## CORS
+
+Cross-Origin Resource Sharing (CORS) is enabled for configured origins. Configure allowed origins using the `CORS_ORIGINS` environment variable.
+
+## Health check
+
+Check API availability:
+
+```bash
+curl https://your-domain.com/health
+```
+
+```json
+{
+  "status": "ok"
+}
+```

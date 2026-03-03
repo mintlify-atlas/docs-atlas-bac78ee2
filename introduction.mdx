@@ -1,0 +1,91 @@
+---
+title: Introduction
+description: Transform books into actionable insights with AI-powered summaries and interactive chat
+---
+
+# Welcome to Reading Assistant
+
+Reading Assistant is an AI-powered tool that converts books (PDF, EPUB, or plain text) into structured summaries and interactive chat experiences. Extract core ideas from any book quickly, without needing to read it cover to cover.
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get up and running in 5 minutes
+  </Card>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Detailed setup instructions for backend and frontend
+  </Card>
+  <Card
+    title="API reference"
+    icon="code"
+    href="/api/overview"
+  >
+    Explore the REST API endpoints
+  </Card>
+  <Card
+    title="Features"
+    icon="stars"
+    href="/features/book-summarization"
+  >
+    Discover what Reading Assistant can do
+  </Card>
+</CardGroup>
+
+## Key features
+
+<CardGroup cols={3}>
+  <Card title="Multi-format support" icon="file">
+    Upload PDF, EPUB, or paste plain text. The system automatically extracts and processes content from any format.
+  </Card>
+  <Card title="Structured summaries" icon="list">
+    Get organized summaries with core thesis, key insights, actionable takeaways, and ideal reader profiles.
+  </Card>
+  <Card title="Chapter breakdowns" icon="book-open">
+    Navigate chapter-by-chapter summaries to dive deeper into specific sections.
+  </Card>
+  <Card title="Interactive chat" icon="messages">
+    Ask questions about the book content using RAG-powered AI chat.
+  </Card>
+  <Card title="Export to PDF" icon="file-pdf">
+    Download professionally formatted summary PDFs for offline reading.
+  </Card>
+  <Card title="Smart caching" icon="clock">
+    Instantly retrieve summaries for previously processed books without reprocessing.
+  </Card>
+</CardGroup>
+
+## Tech stack
+
+Reading Assistant is built with modern technologies:
+
+### Backend
+- **Python 3.12** with FastAPI for high-performance APIs
+- **SQLAlchemy** ORM with SQLite (configurable to PostgreSQL)
+- **ChromaDB** vector store for RAG capabilities
+- **LlamaIndex** for document processing and retrieval
+
+### Frontend
+- **Next.js 16** with App Router
+- **React 19** with TypeScript
+- **Tailwind CSS** for styling
+- **Better Auth** for authentication
+
+### AI & Infrastructure
+- **OpenRouter API** with Gemini 3 Flash for summarization
+- **OpenAI embeddings** for semantic search
+- **RAG pipeline** for contextual chat responses
+
+<Note>
+  Reading Assistant requires API keys for OpenRouter and OpenAI. See the [installation guide](/installation) for details on obtaining and configuring these keys.
+</Note>
+
+## Getting started
+
+Ready to dive in? Follow our [quick start guide](/quickstart) to generate your first book summary in minutes, or check out the [installation guide](/installation) for a complete setup walkthrough.

@@ -1,0 +1,224 @@
+---
+title: Architecture
+description: System architecture and components of Reading Assistant
+---
+
+Reading Assistant is built with a modern architecture separating backend API services from the frontend client, with RAG (Retrieval-Augmented Generation) capabilities for intelligent book chat.
+
+## Overview
+
+The system consists of four main components:
+
+1. **Backend API** - FastAPI server handling book processing and AI operations
+2. **Frontend Client** - Next.js application providing the user interface
+3. **Database Layer** - SQLite/PostgreSQL for data persistence
+4. **RAG System** - Vector storage and retrieval for chat functionality
+
+## Architecture diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Frontend (Next.js)                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐  │
+│  │   Upload UI  │  │  Summary UI  │  │    Chat UI      │  │
+│  └──────────────┘  └──────────────┘  └─────────────────┘  │
+│         │                  │                   │            │
+└─────────┼──────────────────┼───────────────────┼────────────┘
+          │                  │                   │
+          └──────────────────┼───────────────────┘
+                             │
+                      HTTP/REST API
+                             │
+┌─────────────────────────────────────────────────────────────┐
+│                    Backend (FastAPI)                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐  │
+│  │   Routers    │  │     Core     │  │   RAG Engine    │  │
+│  │  (API Layer) │  │   Services   │  │  (LlamaIndex)   │  │
+│  └──────────────┘  └──────────────┘  └─────────────────┘  │
+│         │                  │                   │            │
+│         └──────────────────┼───────────────────┘            │
+│                            │                                │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │              Database Layer (SQLAlchemy)             │  │
+│  └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+          │                                │
+          │                                │
+   ┌──────▼────────┐              ┌───────▼────────┐
+   │   SQLite/     │              │    ChromaDB    │
+   │  PostgreSQL   │              │ (Vector Store) │
+   └───────────────┘              └────────────────┘
+          │                                │
+          │                                │
+          │         External Services      │
+          │                                │
+   ┌──────▼────────┐              ┌───────▼────────┐
+   │  Better Auth  │              │   OpenRouter   │
+   │  (Auth DB)    │              │   OpenAI API   │
+   └───────────────┘              └────────────────┘
+```
+
+## Backend architecture
+
+The backend follows a layered architecture pattern:
+
+### API layer
+
+FastAPI routers handle HTTP requests and responses:
+
+- `routers/summarize.py` - Book upload and summarization endpoints
+- `routers/chat.py` - Chat creation and message streaming
+
+### Core services
+
+Business logic is organized in the `core/` directory:
+
+- `extractor.py` - Extracts text from PDF, EPUB, and URLs
+- `summarizer.py` - Generates structured summaries using LLM
+- `pdf_export.py` - Exports summaries to PDF format
+- `auth.py` - Authentication helpers for Better Auth integration
+- `config.py` - Centralized configuration management
+
+### Data layer
+
+SQLAlchemy ORM with repository pattern:
+
+- `db/models/` - Database models (Summary, Chat, UserSummary)
+- `db/repositories/` - Data access layer abstracting database operations
+
+### RAG system
+
+Retrieval-Augmented Generation for book chat:
+
+- `rag/indexer.py` - Chunks and indexes book content
+- `rag/vector_store.py` - Manages ChromaDB collections
+- `rag/chat_engine.py` - Handles chat queries with context retrieval
+
+## Frontend architecture
+
+Next.js 16 App Router structure:
+
+```
+client/
+├── app/                    # Route pages
+│   ├── page.tsx           # Home/upload page
+│   ├── summary/[id]/      # Summary detail view
+│   ├── chat/[chatId]/     # Individual chat view
+│   ├── chats/             # Chat list
+│   ├── library/           # Saved summaries
+│   └── api/               # API routes (auth, proxy)
+├── components/            # React components
+│   ├── auth/             # Login/signup forms
+│   ├── chat/             # Chat UI components
+│   └── summary/          # Summary display components
+└── lib/                   # Client utilities
+    ├── api.ts            # API client
+    ├── auth.ts           # Auth configuration
+    └── auth-client.ts    # Auth helpers
+```
+
+## Data flow
+
+### Summarization flow
+
+1. User uploads PDF/EPUB or pastes text
+2. Frontend sends file to `/api/summarize`
+3. Backend extracts text using PyMuPDF or ebooklib
+4. Text hash is computed and checked against cache
+5. If not cached, text is sent to OpenRouter (Gemini 3 Flash)
+6. LLM returns structured JSON summary
+7. Summary is stored in database with content hash
+8. Frontend displays structured summary
+
+### Chat flow
+
+1. User creates chat for a book summary
+2. Backend checks if book is indexed in vector store
+3. If not indexed, book content is chunked and embedded:
+   - Text split into chunks (1024 chars, 200 overlap)
+   - OpenAI embeddings generated for each chunk
+   - Vectors stored in ChromaDB
+4. User sends message
+5. Query is embedded and similar chunks retrieved (top 5)
+6. Retrieved context + chat history sent to LLM
+7. Response streamed back via Server-Sent Events
+8. Messages stored in database
+
+## Database schema
+
+### Summaries table
+
+- `id` - UUID primary key
+- `content_hash` - SHA-256 hash for caching
+- `content` - Full extracted text
+- `summary` - JSON structured summary
+- `created_at` - Timestamp
+
+### User summaries table
+
+- `id` - UUID primary key  
+- `user_id` - Reference to Better Auth user
+- `summary_id` - Foreign key to summaries
+- `created_at` - When saved to library
+
+### Chats table
+
+- `id` - UUID primary key
+- `summary_id` - Foreign key to summaries
+- `user_id` - Reference to Better Auth user
+- `title` - Chat title
+- `created_at` / `updated_at` - Timestamps
+
+### Messages table
+
+- `id` - UUID primary key
+- `chat_id` - Foreign key to chats
+- `role` - "user" or "assistant"
+- `content` - Message text
+- `created_at` - Timestamp
+
+## Authentication
+
+Authentication is handled by Better Auth:
+
+- Frontend uses Better Auth client for login/signup
+- Auth state stored in PostgreSQL (required by Better Auth)
+- Session tokens passed via cookies
+- Backend validates tokens by calling Better Auth URL
+- User ID extracted and used for authorization
+
+## Caching strategy
+
+Content-based caching prevents redundant processing:
+
+1. Text content is hashed using SHA-256
+2. Hash checked in `summaries` table before processing
+3. If match found, cached summary returned immediately
+4. Reduces API costs and improves response time
+
+## Error handling
+
+The system implements comprehensive error handling:
+
+- Custom exceptions (`ExtractionError`, `SummaryError`)
+- HTTP status codes for API errors
+- Fallback to OCR for scanned PDFs
+- Retry logic for URL extraction (3 attempts)
+- Logging at all layers (file and console)
+
+## Scalability considerations
+
+### Current limitations
+
+- Default SQLite database (single file)
+- ChromaDB uses local persistence
+- Synchronous book indexing on chat creation
+
+### Production recommendations
+
+- Switch to PostgreSQL for better concurrency
+- Use managed vector database (Pinecone, Weaviate)
+- Add background job queue (Celery, Redis)
+- Implement rate limiting
+- Add CDN for frontend assets
+- Consider serverless deployment for API

@@ -1,0 +1,258 @@
+---
+title: Database setup
+description: Configure SQLite or PostgreSQL for Reading Assistant
+---
+
+Reading Assistant uses SQLAlchemy ORM with support for both SQLite (default) and PostgreSQL databases.
+
+## Database options
+
+### SQLite (default)
+
+SQLite is the default database, suitable for development and single-user deployments. It requires no setup and stores data in a local file.
+
+**Configuration:**
+
+```bash
+DATABASE_URL=sqlite:///data/app.db
+```
+
+The database file will be created automatically at `data/app.db` when the application starts.
+
+### PostgreSQL
+
+PostgreSQL is recommended for production deployments with multiple users or higher concurrency requirements.
+
+**Configuration:**
+
+```bash
+DATABASE_URL=postgresql://username:password@localhost:5432/reading_assistant
+```
+
+Replace `username`, `password`, `localhost`, `5432`, and `reading_assistant` with your PostgreSQL credentials and database name.
+
+## Database initialization
+
+The database is automatically initialized when the FastAPI application starts. See `api.py:14-19`:
+
+```python
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize database on startup."""
+    init_db()
+    logger.info("Database initialized")
+    yield
+```
+
+The `init_db()` function creates all tables defined in the SQLAlchemy models:
+
+```python
+def init_db() -> None:
+    """Create all tables."""
+    from db.models import Base
+    Base.metadata.create_all(bind=engine)
+```
+
+See `db/__init__.py:22-27` for details.
+
+<Warning>
+  The database tables are created automatically on first run. No manual migration is required for initial setup.
+</Warning>
+
+## Database models
+
+Reading Assistant uses three main database tables:
+
+### Summary table
+
+Stores book summaries for caching and retrieval. Defined in `db/models/summary.py:16-35`:
+
+```python
+class Summary(Base):
+    __tablename__ = "summaries"
+    
+    id: str                    # UUID primary key
+    content_hash: str          # SHA-256 hash of book content
+    content: str               # Original book text
+    summary: str               # JSON summary data
+    created_at: datetime       # Timestamp
+```
+
+**Purpose:**
+- Avoid re-processing the same book twice
+- Store original content for RAG chat feature
+- Enable quick summary retrieval by hash
+
+### UserSummary table
+
+Links users to saved summaries. Defined in `db/models/summary.py:38-52`:
+
+```python
+class UserSummary(Base):
+    __tablename__ = "user_summaries"
+    
+    id: str                    # UUID primary key
+    user_id: str               # User identifier
+    summary_id: str            # Foreign key to Summary
+    created_at: datetime       # Timestamp
+```
+
+**Purpose:**
+- Track which summaries each user has saved
+- Enable user library functionality
+- Support multiple users saving the same book
+
+### Chat and message tables
+
+Stores chat conversations and vector indexes. Defined in `db/models/chat.py`:
+
+```python
+class Chat(Base):
+    __tablename__ = "chats"
+    
+    id: str
+    summary_id: str
+    user_id: str
+    created_at: datetime
+
+class Message(Base):
+    __tablename__ = "messages"
+    
+    id: str
+    chat_id: str
+    role: str                  # "user" or "assistant"
+    content: str
+    created_at: datetime
+
+class VectorIndex(Base):
+    __tablename__ = "vector_indexes"
+    
+    summary_id: str            # Primary key
+    index_path: str            # ChromaDB collection name
+    created_at: datetime
+```
+
+## Migrations
+
+Reading Assistant does not currently use Alembic or migration files. Schema changes are applied by:
+
+1. Updating the SQLAlchemy models in `db/models/`
+2. Restarting the application (tables are created if they don't exist)
+
+<Warning>
+  For production deployments, consider implementing proper migrations with Alembic to handle schema changes safely without data loss.
+</Warning>
+
+## Database connection
+
+The database connection is configured in `db/__init__.py:8-10`:
+
+```python
+engine = create_engine(settings.DATABASE_URL, echo=False)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+```
+
+### Session management
+
+FastAPI routes use dependency injection to get database sessions:
+
+```python
+def get_db() -> Generator[Session, None, None]:
+    """Dependency for FastAPI routes."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+```
+
+See `db/__init__.py:13-19` for details.
+
+## PostgreSQL setup (production)
+
+For production deployments with PostgreSQL:
+
+1. Create a PostgreSQL database:
+   ```sql
+   CREATE DATABASE reading_assistant;
+   ```
+
+2. Create a user with access:
+   ```sql
+   CREATE USER app_user WITH PASSWORD 'secure_password';
+   GRANT ALL PRIVILEGES ON DATABASE reading_assistant TO app_user;
+   ```
+
+3. Update your `.env` file:
+   ```bash
+   DATABASE_URL=postgresql://app_user:secure_password@localhost:5432/reading_assistant
+   ```
+
+4. Start the application (tables will be created automatically)
+
+### Using managed PostgreSQL
+
+For cloud deployments, you can use managed PostgreSQL services:
+
+- **Neon**: Serverless PostgreSQL with generous free tier
+- **Supabase**: PostgreSQL with built-in REST API
+- **AWS RDS**: Managed PostgreSQL on AWS
+- **Google Cloud SQL**: Managed PostgreSQL on GCP
+
+All of these services provide a `DATABASE_URL` connection string you can use directly.
+
+## ChromaDB vector storage
+
+In addition to the SQL database, Reading Assistant uses ChromaDB to store vector embeddings for the chat feature.
+
+**Configuration:**
+
+```bash
+CHROMA_PERSIST_DIR=./data/chroma
+```
+
+ChromaDB creates a separate collection for each book, stored in the directory specified by `CHROMA_PERSIST_DIR`. See `rag/vector_store.py:124-131` for implementation details:
+
+```python
+def get_client() -> chromadb.PersistentClient:
+    """Get or create ChromaDB persistent client."""
+    global _client
+    if _client is None:
+        Path(settings.CHROMA_PERSIST_DIR).mkdir(parents=True, exist_ok=True)
+        _client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIR)
+    return _client
+```
+
+### Collection naming
+
+Each book gets its own collection named `book_{summary_id}`. See `rag/vector_store.py:134-140` for details.
+
+<Warning>
+  ChromaDB data is stored separately from the SQL database. If you delete the ChromaDB directory, you'll need to re-index books for chat functionality.
+</Warning>
+
+## Backup recommendations
+
+### SQLite backups
+
+For SQLite, backup the entire `data/` directory:
+
+```bash
+tar -czf backup-$(date +%Y%m%d).tar.gz data/
+```
+
+### PostgreSQL backups
+
+For PostgreSQL, use `pg_dump`:
+
+```bash
+pg_dump -U username reading_assistant > backup.sql
+```
+
+### ChromaDB backups
+
+Backup the ChromaDB directory specified in `CHROMA_PERSIST_DIR`:
+
+```bash
+tar -czf chroma-backup-$(date +%Y%m%d).tar.gz data/chroma/
+```
