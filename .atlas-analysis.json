@@ -1,0 +1,116 @@
+{
+  "projectType": "saas",
+  "projectName": "Reading Assistant",
+  "projectDescription": "An AI-powered tool that converts books into structured summaries with interactive chat capabilities.",
+  "theme": "almond",
+  "primaryColor": "#6366F1",
+  "lightColor": "#818CF8",
+  "darkColor": "#4F46E5",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/book-summarization",
+              "features/multi-format-support",
+              "features/interactive-chat",
+              "features/pdf-export",
+              "features/library-management"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/uploading-books",
+              "guides/chat-with-books",
+              "guides/managing-library",
+              "guides/authentication"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/environment-variables",
+              "configuration/llm-settings",
+              "configuration/database-setup"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/overview",
+              "api/summarize",
+              "api/chat",
+              "api/library"
+            ]
+          },
+          {
+            "group": "Authentication",
+            "pages": [
+              "api/auth"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Development",
+        "groups": [
+          {
+            "group": "Architecture",
+            "pages": [
+              "development/architecture",
+              "development/tech-stack",
+              "development/project-structure"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "development/deployment",
+              "development/troubleshooting"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multi-format book input (PDF, EPUB, plain text, URL)",
+    "AI-powered structured summaries with core thesis and key insights",
+    "Chapter-by-chapter breakdowns with actionable takeaways",
+    "Interactive RAG-powered chat to query book content",
+    "Personal library to save and organize summaries",
+    "PDF export of generated summaries",
+    "Multi-language support with automatic language detection",
+    "Smart caching to avoid re-processing identical content"
+  ],
+  "publicApiSurface": [
+    "POST /api/summarize - Generate book summary from file, URL, or text",
+    "GET /api/summary/{id} - Retrieve a summary by ID",
+    "GET /api/summary/{id}/pdf - Download summary as PDF",
+    "POST /api/summary/{id}/save - Save summary to user library",
+    "DELETE /api/summary/{id}/save - Remove summary from library",
+    "GET /api/library - List user's saved summaries",
+    "POST /api/chats - Create new chat for a book",
+    "GET /api/chats - List user's chats",
+    "GET /api/chats/{id} - Get chat with messages",
+    "POST /api/chats/{id}/messages - Send message and get streaming response",
+    "DELETE /api/chats/{id} - Delete a chat"
+  ]
+}
